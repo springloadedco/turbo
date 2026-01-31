@@ -35,14 +35,6 @@ Turbo publishes development skills to your project:
 | `laravel-validation` | Form Request validation patterns |
 | `laravel-inertia` | TypeScript page component patterns |
 
-### Docker Sandbox
-
-Use the included Dockerfile with Claude Code's docker sandbox:
-
-```bash
-docker sandbox run --dockerfile /path/to/turbo/Dockerfile
-```
-
 ## Testing
 
 ```bash
