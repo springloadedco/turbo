@@ -61,5 +61,5 @@ return [
         |
         */
         'repository' => env('GITHUB_REPOSITORY', null),
-    ]
+    ],
 ];

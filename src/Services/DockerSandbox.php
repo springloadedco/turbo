@@ -10,7 +10,7 @@ class DockerSandbox
 
     public function dockerfilePath(): string
     {
-        return dirname(__DIR__, 2) . '/Dockerfile';
+        return dirname(__DIR__, 2).'/Dockerfile';
     }
 
     /**
