@@ -5,8 +5,8 @@ use Springloaded\Turbo\Services\DockerSandbox;
 it('returns the correct dockerfile path', function () {
     $sandbox = app(DockerSandbox::class);
 
-    expect($sandbox->dockerfilePath())->toEndWith('/Dockerfile');
-    expect(file_exists($sandbox->dockerfilePath()))->toBeTrue();
+    expect($sandbox->dockerfile)->toEndWith('/Dockerfile');
+    expect(file_exists($sandbox->dockerfile))->toBeTrue();
 });
 
 it('creates a build process with correct command', function () {

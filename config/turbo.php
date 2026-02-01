@@ -1,65 +1,39 @@
 <?php
 
-// config for Springloaded/Turbo
 return [
 
     'docker' => [
         /*
         |--------------------------------------------------------------------------
-        | Docker Sandbox Template
+        | Image Name
         |--------------------------------------------------------------------------
         |
-        | This option defines the Docker sandbox template to use when running
-        | Turbo in a Docker sandbox environment.
+        | The tag used when building the sandbox image and the template name
+        | passed to `docker sandbox run`.
         |
         */
-        'sandbox_template' => env('TURBO_DOCKER_SANDBOX_TEMPLATE', 'claude-php-sandbox'),
+        'image' => env('TURBO_DOCKER_IMAGE', 'turbo-sandbox'),
 
         /*
         |--------------------------------------------------------------------------
-        | Docker Sandbox Workspace
+        | Dockerfile Path
         |--------------------------------------------------------------------------
         |
-        | This option defines the workspace directory to mount when running
-        | the Docker sandbox. Defaults to the Laravel project root.
+        | Path to the Dockerfile used to build the sandbox image. The directory
+        | containing the Dockerfile is used as the build context.
+        |
+        */
+        'dockerfile' => env('TURBO_DOCKER_DOCKERFILE', __DIR__.'/../Dockerfile'),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workspace Path
+        |--------------------------------------------------------------------------
+        |
+        | The local directory mounted into the sandbox via `--workspace`.
         |
         */
         'workspace' => env('TURBO_DOCKER_WORKSPACE', base_path()),
     ],
 
-    'claude' => [
-        /*
-        |--------------------------------------------------------------------------
-        | Claude Model
-        |--------------------------------------------------------------------------
-        |
-        | This option defines the default Claude model to use when interacting
-        | with the Claude AI service.
-        |
-        */
-        'model' => env('TURBO_CLAUDE_MODEL', 'opus'),
-    ],
-
-    'github' => [
-        /*
-        |--------------------------------------------------------------------------
-        | GitHub Token
-        |--------------------------------------------------------------------------
-        |
-        | This option defines the GitHub token to use for authentication when
-        | interacting with the GitHub API.
-        |
-        */
-        'token' => env('GITHUB_TOKEN', null),
-
-        /*
-        |--------------------------------------------------------------------------
-        | GitHub Repository
-        |--------------------------------------------------------------------------
-        |
-        | This option defines the GitHub repository to use for task management.
-        |
-        */
-        'repository' => env('GITHUB_REPOSITORY', null),
-    ]
 ];

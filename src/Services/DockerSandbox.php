@@ -6,11 +6,14 @@ use Symfony\Component\Process\Process;
 
 class DockerSandbox
 {
-    protected string $image = 'turbo-sandbox';
+    public string $image;
 
-    public function dockerfilePath(): string
+    public string $dockerfile;
+
+    public function __construct()
     {
-        return dirname(__DIR__, 2) . '/Dockerfile';
+        $this->image = config('turbo.docker.image');
+        $this->dockerfile = config('turbo.docker.dockerfile');
     }
 
     /**
@@ -20,9 +23,10 @@ class DockerSandbox
     {
         $process = new Process([
             'docker', 'build',
+            '--progress=plain',
             '-t', $this->image,
-            '-f', $this->dockerfilePath(),
-            dirname($this->dockerfilePath()),
+            '-f', $this->dockerfile,
+            dirname($this->dockerfile),
         ]);
 
         $process->setTimeout(null);
