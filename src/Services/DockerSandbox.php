@@ -48,7 +48,7 @@ class DockerSandbox
             '--template', $this->image,
             '--workspace', $this->workspace,
             'claude',
-            '--dangerously-skip-permissions'
+            '--dangerously-skip-permissions',
         ]);
 
         $process->setTimeout(null);

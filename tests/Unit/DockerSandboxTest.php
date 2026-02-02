@@ -57,4 +57,3 @@ it('creates a prompt process with workspace from config', function () {
         ->toContain("'-p'")
         ->toContain('Hello Claude');
 });
-
