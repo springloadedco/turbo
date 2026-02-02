@@ -24,8 +24,11 @@ _ide_helper_models.php
 /.fleet
 /.vscode
 
-# Misc
+# Environment Files
 .env
+settings.local.json
+
+# Misc
 phpunit.xml
 phpstan.neon
 testbench.yaml

@@ -39,23 +39,11 @@ it('creates an interactive process with workspace from config', function () {
         ->toContain("'claude'");
 });
 
-it('creates an interactive process with custom workspace', function () {
-    config()->set('turbo.docker.workspace', '/default/workspace');
-
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->interactiveProcess('/custom/workspace');
-
-    expect($process->getCommandLine())
-        ->toContain('--workspace')
-        ->toContain('/custom/workspace')
-        ->not->toContain('/default/workspace');
-});
-
-it('creates a detached process with workspace from config', function () {
+it('creates a prompt process with workspace from config', function () {
     config()->set('turbo.docker.workspace', '/test/workspace');
 
     $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->detachedProcess();
+    $process = $sandbox->promptProcess('Hello Claude');
 
     expect($process->getCommandLine())
         ->toContain("'docker'")
@@ -65,18 +53,8 @@ it('creates a detached process with workspace from config', function () {
         ->toContain("'turbo-sandbox'")
         ->toContain("'--workspace'")
         ->toContain('/test/workspace')
-        ->toContain("'--detached'")
-        ->toContain("'claude'");
+        ->toContain("'claude'")
+        ->toContain("'-p'")
+        ->toContain('Hello Claude');
 });
 
-it('creates a detached process with custom workspace', function () {
-    config()->set('turbo.docker.workspace', '/default/workspace');
-
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->detachedProcess('/custom/workspace');
-
-    expect($process->getCommandLine())
-        ->toContain('--workspace')
-        ->toContain('/custom/workspace')
-        ->not->toContain('/default/workspace');
-});

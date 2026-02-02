@@ -10,10 +10,13 @@ class DockerSandbox
 
     public string $dockerfile;
 
+    public string $workspace;
+
     public function __construct()
     {
         $this->image = config('turbo.docker.image');
         $this->dockerfile = config('turbo.docker.dockerfile');
+        $this->workspace = config('turbo.docker.workspace');
     }
 
     /**
@@ -37,15 +40,15 @@ class DockerSandbox
     /**
      * Create a process to run sandbox in interactive TTY mode.
      */
-    public function interactiveProcess(?string $workspace = null): Process
+    public function interactiveProcess(): Process
     {
-        $workspace ??= config('turbo.docker.workspace');
 
         $process = new Process([
             'docker', 'sandbox', 'run',
             '--template', $this->image,
-            '--workspace', $workspace,
+            '--workspace', $this->workspace,
             'claude',
+            '--dangerously-skip-permissions'
         ]);
 
         $process->setTimeout(null);
@@ -58,21 +61,20 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to run sandbox in detached mode.
+     * Create a process to run sandbox with a prompt (non-interactive).
      */
-    public function detachedProcess(?string $workspace = null): Process
+    public function promptProcess(string $prompt): Process
     {
-        $workspace ??= config('turbo.docker.workspace');
-
         $process = new Process([
             'docker', 'sandbox', 'run',
             '--template', $this->image,
-            '--workspace', $workspace,
-            '--detached',
+            '--workspace', $this->workspace,
             'claude',
+            '-p', $prompt,
         ]);
 
         $process->setTimeout(null);
+        $process->setPty(true);
 
         return $process;
     }
