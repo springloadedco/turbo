@@ -36,14 +36,18 @@ Issues represent individual tasks of a given milestone (plan) completable in a s
 
 ## Standard Acceptance Criteria
 
-EVERY issue must include these feedback loop criteria after issue-specific criteria:
+EVERY issue must include feedback loop criteria relevant to the project's tech stack. Include commands that verify the code works:
 
+- **PHP projects**: `composer lint`, `composer test`, `composer analyse`
+- **Node projects**: `npm run lint`, `npm run types`, `npm run build`, `npm run test`
+- **Mixed stacks**: Include both as appropriate
+
+Example for a Laravel + Inertia project:
 ```markdown
-- [ ] `npm run types` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run build` succeeds
 - [ ] `composer lint` passes
 - [ ] `composer test` passes
+- [ ] `npm run types` passes
+- [ ] `npm run build` succeeds
 ```
 
 ## Example
@@ -98,9 +102,30 @@ When creating multiple issues:
 2. Create blocked issues with clear `Depends on #N` note in description
 3. Assign appropriate priority labels so high-priority blockers are done first
 
-## GitHub API & MCP
+## Creating Issues
 
-Use the `gh` cli tool to create issues. As a backup, the project may have the GitHub mcp server installed:
+**Preferred: `gh` CLI**
+
+```bash
+gh issue create \
+  --title "Issue title" \
+  --body "$(cat <<'EOF'
+## Description
+What needs to be done.
+
+## Acceptance Criteria
+- [ ] Specific criterion
+- [ ] `composer test` passes
+EOF
+)" \
+  --label "priority:high" \
+  --label "type:feature" \
+  --milestone "Milestone Name"
+```
+
+**Fallback: GitHub MCP**
+
+If `gh` CLI is unavailable, the project may have the GitHub MCP server installed:
 
 ```
 Tool: mcp__github__create_issue

@@ -33,7 +33,27 @@ When selecting the next issue to work on:
 
 ## Usage
 
-Labels should be included when creating issues:
+**Preferred: `gh` CLI**
+
+Apply labels when creating issues:
+
+```bash
+gh issue create \
+  --title "Issue title" \
+  --body "Issue body" \
+  --label "priority:high" \
+  --label "type:feature"
+```
+
+Add labels to existing issues:
+
+```bash
+gh issue edit <issue-number> --add-label "priority:high" --add-label "type:bug"
+```
+
+**Fallback: GitHub MCP**
+
+If `gh` CLI is unavailable:
 
 ```
 Tool: mcp__github__create_issue
@@ -56,7 +76,6 @@ Common combinations:
 | New feature | `type:feature`, `priority:medium` |
 | Tech debt | `type:refactor`, `priority:low` |
 | README update | `type:docs`, `priority:low` |
-| Blocking issue | `type:bug`, `priority:high` |
 
 ## Best Practices
 

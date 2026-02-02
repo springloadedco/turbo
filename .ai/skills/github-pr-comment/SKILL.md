@@ -70,7 +70,26 @@ Adds progress comments to PRs to track work done and provide visibility into exe
 - Need clarification on authentication requirements
 ```
 
-## GitHub MCP Tool
+## Adding PR Comments
+
+**Preferred: `gh` CLI**
+
+```bash
+gh pr comment <pr-number> --body "$(cat <<'EOF'
+## Progress
+
+### Completed
+- What was done
+
+### Files Changed
+- `path/to/file.php`
+EOF
+)"
+```
+
+**Fallback: GitHub MCP**
+
+If `gh` CLI is unavailable, use the GitHub MCP server. Note: GitHub's API treats PRs as issues, so use `add_issue_comment` with the PR number:
 
 ```
 Tool: mcp__github__add_issue_comment

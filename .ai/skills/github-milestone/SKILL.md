@@ -52,7 +52,28 @@ Migrate the Ralph autonomous agent system from file-based (PRD.md + progress.txt
 3. **Clear completion criteria** - Define what "done" means
 4. **Keep milestones focused** - 3-7 issues per milestone is ideal
 
-## GitHub MCP Tool
+## Creating Milestones
+
+**Preferred: `gh` CLI**
+
+```bash
+gh api repos/{owner}/{repo}/milestones \
+  --method POST \
+  -f title="Milestone title" \
+  -f description="$(cat <<'EOF'
+## Summary
+Brief context about the milestone.
+
+## Done When
+- [ ] Criterion 1
+- [ ] Criterion 2
+EOF
+)"
+```
+
+**Fallback: GitHub MCP**
+
+If `gh` CLI is unavailable:
 
 ```
 Tool: mcp__github__create_milestone
