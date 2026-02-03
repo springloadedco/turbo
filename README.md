@@ -1,7 +1,5 @@
 ![Turbo](turbo.png)
 
-Springloaded's secret sauce for Laravel AI development.
-
 ## What is Turbo?
 
 Turbo supercharges AI-assisted Laravel development by providing:
