@@ -31,13 +31,4 @@ class TurboServiceProvider extends PackageServiceProvider
                 PublishSkillsCommand::class,
             ]);
     }
-
-    public function bootingPackage(): void
-    {
-        $configPath = config_path('turbo.php');
-
-        if (! File::exists($configPath) && ! $this->app->runningUnitTests()) {
-            File::copy(__DIR__.'/../config/turbo.php', $configPath);
-        }
-    }
 }

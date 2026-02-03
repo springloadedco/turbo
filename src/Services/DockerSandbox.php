@@ -15,8 +15,17 @@ class DockerSandbox
     public function __construct()
     {
         $this->image = config('turbo.docker.image');
-        $this->dockerfile = config('turbo.docker.dockerfile');
+        $this->dockerfile = config('turbo.docker.dockerfile') 
+            ?? $this->getPackageDockerfilePath();
         $this->workspace = config('turbo.docker.workspace');
+    }
+
+    /**
+     * Get the path to the Dockerfile in the package.
+     */
+    protected function getPackageDockerfilePath(): string
+    {
+        return dirname(__DIR__, 2).'/Dockerfile';
     }
 
     /**
@@ -74,7 +83,10 @@ class DockerSandbox
         ]);
 
         $process->setTimeout(null);
-        $process->setPty(true);
+
+        if (Process::isTtySupported()) {
+            $process->setPty(true);
+        }
 
         return $process;
     }

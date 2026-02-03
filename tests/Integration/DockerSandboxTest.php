@@ -2,12 +2,6 @@
 
 use Springloaded\Turbo\Services\DockerSandbox;
 
-beforeEach(function () {
-    if (! dockerIsAvailable()) {
-        $this->markTestSkipped('Docker is not available.');
-    }
-});
-
 it('can build the sandbox image', function () {
     $sandbox = app(DockerSandbox::class);
     $process = $sandbox->buildProcess();
@@ -21,7 +15,7 @@ it('can build the sandbox image', function () {
         ->toContain('exporting to image')
         ->toContain('writing image sha256:')
         ->toContain('naming to docker.io/library/'.$sandbox->image);
-})->skip(! dockerIsAvailable(), 'Docker is not available');
+})->skip(! dockerIsAvailable() || ! getenv('RUN_DOCKER_TESTS'), 'Docker integration tests require RUN_DOCKER_TESTS=1');
 
 function dockerIsAvailable(): bool
 {

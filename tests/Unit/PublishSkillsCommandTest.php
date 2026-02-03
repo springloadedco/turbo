@@ -68,6 +68,20 @@ function registerTestableCommand(array $overrides = []): void
     app(Kernel::class)->registerCommand($command);
 }
 
+/**
+ * Call the protected addToGitignore method on a PublishSkillsCommand instance.
+ */
+function callAddToGitignore(): void
+{
+    $command = new PublishSkillsCommand(
+        app(SkillsService::class),
+        app(\Illuminate\Filesystem\Filesystem::class)
+    );
+
+    $reflection = new ReflectionMethod(PublishSkillsCommand::class, 'addToGitignore');
+    $reflection->invoke($command);
+}
+
 it('fails when npx is not available', function () {
     registerTestableCommand(['npxAvailable' => false]);
 
@@ -181,7 +195,7 @@ it('skips symlinked skill directories during template processing', function () {
 
     // The symlinked directory should have been skipped (not processed independently)
     expect(is_link(base_path('.cursor/skills/github-issue')))->toBeTrue();
-});
+})->skip(PHP_OS_FAMILY === 'Windows', 'Symlinks require special permissions on Windows');
 
 it('outputs intro message before running npx skills', function () {
     registerTestableCommand(['npxExitCode' => 0]);
@@ -221,14 +235,7 @@ it('adds settings.local.json to gitignore', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n");
 
-    $files = app(\Illuminate\Filesystem\Filesystem::class);
-    $contents = $files->get($gitignorePath);
-    $pattern = '.claude/settings.local.json';
-
-    if (! str_contains($contents, $pattern)) {
-        $addition = "\n# Claude local settings (contains secrets)\n{$pattern}\n";
-        $files->append($gitignorePath, $addition);
-    }
+    callAddToGitignore();
 
     $contents = File::get($gitignorePath);
     expect($contents)->toContain('.claude/settings.local.json');
@@ -238,14 +245,7 @@ it('does not duplicate gitignore entry if already present', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n.claude/settings.local.json\n");
 
-    $files = app(\Illuminate\Filesystem\Filesystem::class);
-    $contents = $files->get($gitignorePath);
-    $pattern = '.claude/settings.local.json';
-
-    if (! str_contains($contents, $pattern)) {
-        $addition = "\n# Claude local settings (contains secrets)\n{$pattern}\n";
-        $files->append($gitignorePath, $addition);
-    }
+    callAddToGitignore();
 
     $contents = File::get($gitignorePath);
     $count = substr_count($contents, '.claude/settings.local.json');
