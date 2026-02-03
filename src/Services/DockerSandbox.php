@@ -15,7 +15,7 @@ class DockerSandbox
     public function __construct()
     {
         $this->image = config('turbo.docker.image');
-        $this->dockerfile = config('turbo.docker.dockerfile') 
+        $this->dockerfile = config('turbo.docker.dockerfile')
             ?? $this->getPackageDockerfilePath();
         $this->workspace = config('turbo.docker.workspace');
     }
