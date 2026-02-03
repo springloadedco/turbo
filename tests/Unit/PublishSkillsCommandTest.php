@@ -68,6 +68,27 @@ function registerTestableCommand(array $overrides = []): void
     app(Kernel::class)->registerCommand($command);
 }
 
+/**
+ * Create a testable command that exposes the addToGitignore method.
+ */
+function createGitignoreTestCommand()
+{
+    return new class extends PublishSkillsCommand {
+        public function __construct()
+        {
+            parent::__construct(
+                app(SkillsService::class),
+                app(\Illuminate\Filesystem\Filesystem::class)
+            );
+        }
+
+        public function testAddToGitignore(): void
+        {
+            $this->addToGitignore();
+        }
+    };
+}
+
 it('fails when npx is not available', function () {
     registerTestableCommand(['npxAvailable' => false]);
 
@@ -166,11 +187,7 @@ it('skips symlinked skill directories during template processing', function () {
             // Create a symlinked skill directory in .cursor (how npx skills works)
             $cursorPath = base_path('.cursor/skills');
             File::makeDirectory($cursorPath, 0755, true);
-            
-            // Skip test on Windows where symlinks require special permissions
-            if (! @symlink($sourcePath, $cursorPath.'/github-issue')) {
-                $this->markTestSkipped('Symlinks are not supported on this system');
-            }
+            symlink($sourcePath, $cursorPath.'/github-issue');
 
             return 0;
         },
@@ -225,22 +242,7 @@ it('adds settings.local.json to gitignore', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n");
 
-    // Create a testable command that exposes the addToGitignore method
-    $command = new class extends PublishSkillsCommand {
-        public function __construct()
-        {
-            parent::__construct(
-                app(SkillsService::class),
-                app(\Illuminate\Filesystem\Filesystem::class)
-            );
-        }
-
-        public function testAddToGitignore(): void
-        {
-            $this->addToGitignore();
-        }
-    };
-
+    $command = createGitignoreTestCommand();
     $command->testAddToGitignore();
 
     $contents = File::get($gitignorePath);
@@ -251,22 +253,7 @@ it('does not duplicate gitignore entry if already present', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n.claude/settings.local.json\n");
 
-    // Create a testable command that exposes the addToGitignore method
-    $command = new class extends PublishSkillsCommand {
-        public function __construct()
-        {
-            parent::__construct(
-                app(SkillsService::class),
-                app(\Illuminate\Filesystem\Filesystem::class)
-            );
-        }
-
-        public function testAddToGitignore(): void
-        {
-            $this->addToGitignore();
-        }
-    };
-
+    $command = createGitignoreTestCommand();
     $command->testAddToGitignore();
 
     $contents = File::get($gitignorePath);
