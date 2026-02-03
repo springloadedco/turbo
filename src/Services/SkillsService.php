@@ -3,8 +3,6 @@
 namespace Springloaded\Turbo\Services;
 
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Collection;
-use Symfony\Component\Yaml\Yaml;
 
 class SkillsService
 {
@@ -13,110 +11,37 @@ class SkillsService
     ) {}
 
     /**
-     * Discover available skills from the package's .ai/skills directory.
-     *
-     * @return Collection<int, array{name: string, description: string, path: string}>
+     * Get the package root path.
      */
-    public function discover(): Collection
+    public function getPackagePath(): string
     {
-        $skillsPath = $this->getPackageSkillsPath();
-
-        if (! $this->files->isDirectory($skillsPath)) {
-            return collect();
-        }
-
-        return collect($this->files->directories($skillsPath))
-            ->map(fn ($path) => $this->parseSkill($path))
-            ->filter()
-            ->values();
+        return dirname(__DIR__, 2);
     }
 
     /**
-     * Get a specific skill by name.
+     * Get all installed skill paths across supported agent directories.
      *
-     * @return array{name: string, description: string, path: string}|null
+     * @return array<string>
      */
-    public function find(string $name): ?array
+    public function getInstalledSkillPaths(): array
     {
-        return $this->discover()->firstWhere('name', $name);
-    }
-
-    /**
-     * Get multiple skills by name.
-     *
-     * @param  array<string>  $names
-     * @return Collection<int, array{name: string, description: string, path: string}>
-     */
-    public function findMany(array $names): Collection
-    {
-        return $this->discover()->filter(
-            fn ($skill) => in_array($skill['name'], $names)
-        )->values();
-    }
-
-    /**
-     * Parse a skill directory into skill metadata.
-     *
-     * @return array{name: string, description: string, path: string}|null
-     */
-    protected function parseSkill(string $path): ?array
-    {
-        $skillMdPath = $path.'/SKILL.md';
-
-        if (! $this->files->exists($skillMdPath)) {
-            return null;
-        }
-
-        $content = $this->files->get($skillMdPath);
-        $frontmatter = $this->parseFrontmatter($content);
-
-        return [
-            'name' => $frontmatter['name'] ?? basename($path),
-            'description' => $frontmatter['description'] ?? '',
-            'path' => $path,
+        $agentPaths = [
+            '.agents/skills', // Canonical location used by npx skills for symlinks
+            '.claude/skills',
+            '.cursor/skills',
+            '.codex/skills',
         ];
-    }
 
-    /**
-     * Parse YAML frontmatter from SKILL.md content.
-     *
-     * @return array<string, mixed>
-     */
-    public function parseFrontmatter(string $content): array
-    {
-        if (! preg_match('/^---\s*\n(.*?)\n---/s', $content, $matches)) {
-            return [];
+        $paths = [];
+
+        foreach ($agentPaths as $agentPath) {
+            $fullPath = base_path($agentPath);
+            if ($this->files->isDirectory($fullPath)) {
+                $paths[] = $fullPath;
+            }
         }
 
-        try {
-            return Yaml::parse($matches[1]) ?? [];
-        } catch (\Exception) {
-            return [];
-        }
-    }
-
-    /**
-     * Get the package's skills directory path.
-     */
-    public function getPackageSkillsPath(): string
-    {
-        return dirname(__DIR__, 2).'/.ai/skills';
-    }
-
-    /**
-     * Get the target project's skills directory path.
-     */
-    public function getTargetSkillsPath(): string
-    {
-        return base_path('.claude/skills');
-    }
-
-    /**
-     * Check if a skill exists in the target project.
-     */
-    public function existsInTarget(string $name): bool
-    {
-        return $this->files->isDirectory($this->getTargetSkillsPath().'/'.$name);
+        return $paths;
     }
 
     /**

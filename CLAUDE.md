@@ -22,19 +22,11 @@ This is a Laravel package that provides AI guidelines, skills, and tools for Spr
 - `src/` - Package source code
 - `.ai/skills/` - AI skills published to consumer projects
 - `config/` - Publishable config
-- `resources/` - Views and assets
 - `tests/` - Pest tests
 
 ### How Skills Work
 
 The `.ai/skills/` directory contains Laravel development patterns that get published to projects installing Turbo. Each skill has a SKILL.md with usage triggers and examples.
-
-Current skills:
-- `laravel-actions` - Business logic encapsulation
-- `laravel-controllers` - Invokable controller patterns
-- `laravel-testing` - Pest/PHPUnit testing
-- `laravel-validation` - Form Request patterns
-- `laravel-inertia` - TypeScript page components
 
 ### Testing
 

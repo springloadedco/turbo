@@ -1,22 +1,26 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\File;
+use Springloaded\Turbo\Commands\PublishSkillsCommand;
+use Springloaded\Turbo\Services\SkillsService;
 
 beforeEach(function () {
     // Clean up any test artifacts
-    $targetClaudePath = base_path('.claude');
-
-    if (File::isDirectory($targetClaudePath)) {
-        File::deleteDirectory($targetClaudePath);
+    foreach (['.claude', '.cursor', '.codex'] as $dir) {
+        $path = base_path($dir);
+        if (File::isDirectory($path)) {
+            File::deleteDirectory($path);
+        }
     }
 });
 
 afterEach(function () {
-    // Clean up after tests
-    $targetClaudePath = base_path('.claude');
-
-    if (File::isDirectory($targetClaudePath)) {
-        File::deleteDirectory($targetClaudePath);
+    foreach (['.claude', '.cursor', '.codex'] as $dir) {
+        $path = base_path($dir);
+        if (File::isDirectory($path)) {
+            File::deleteDirectory($path);
+        }
     }
 
     // Restore .gitignore if modified
@@ -28,55 +32,163 @@ afterEach(function () {
     }
 });
 
-it('publishes all skills with --all flag', function () {
-    $this->artisan('turbo:publish', ['--all' => true, '--no-interaction' => true])
-        ->assertSuccessful();
+/**
+ * Register a testable command with overridable npx behavior.
+ */
+function registerTestableCommand(array $overrides = []): void
+{
+    $command = new class($overrides) extends PublishSkillsCommand
+    {
+        private array $testOverrides;
 
-    $targetSkillsPath = base_path('.claude/skills');
+        public function __construct(array $overrides)
+        {
+            $this->testOverrides = $overrides;
+            parent::__construct(
+                app(SkillsService::class),
+                app(\Illuminate\Filesystem\Filesystem::class)
+            );
+        }
 
-    expect(File::isDirectory($targetSkillsPath))->toBeTrue();
-    expect(File::isDirectory($targetSkillsPath.'/laravel-actions'))->toBeTrue();
-    expect(File::isDirectory($targetSkillsPath.'/laravel-controllers'))->toBeTrue();
-    expect(File::isDirectory($targetSkillsPath.'/laravel-inertia'))->toBeTrue();
-    expect(File::isDirectory($targetSkillsPath.'/laravel-testing'))->toBeTrue();
-    expect(File::isDirectory($targetSkillsPath.'/laravel-validation'))->toBeTrue();
+        protected function checkNpxAvailable(): bool
+        {
+            return $this->testOverrides['npxAvailable'] ?? true;
+        }
+
+        protected function runNpxSkillsAdd(string $packagePath): int
+        {
+            if (isset($this->testOverrides['runNpxSkillsAdd'])) {
+                return ($this->testOverrides['runNpxSkillsAdd'])($packagePath);
+            }
+
+            return $this->testOverrides['npxExitCode'] ?? 0;
+        }
+    };
+
+    app(Kernel::class)->registerCommand($command);
+}
+
+it('fails when npx is not available', function () {
+    registerTestableCommand(['npxAvailable' => false]);
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
+        ->expectsOutput('npx is required to install skills. Please install Node.js and npm first.')
+        ->assertFailed();
 });
 
-it('publishes specific skills with --skills option', function () {
-    $this->artisan('turbo:publish', ['--skills' => ['laravel-actions'], '--no-interaction' => true])
-        ->assertSuccessful();
+it('fails when npx skills add returns non-zero exit code', function () {
+    registerTestableCommand(['npxExitCode' => 1]);
 
-    $targetSkillsPath = base_path('.claude/skills');
-
-    expect(File::isDirectory($targetSkillsPath.'/laravel-actions'))->toBeTrue();
-    expect(File::isDirectory($targetSkillsPath.'/laravel-controllers'))->toBeFalse();
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
+        ->expectsOutput('Failed to install skills via npx skills.')
+        ->assertFailed();
 });
 
-it('overwrites existing skills with --force flag', function () {
-    $targetSkillsPath = base_path('.claude/skills/laravel-actions');
+it('passes package path to npx skills add', function () {
+    $capturedPath = null;
 
-    // Create existing skill directory with a marker file
-    File::makeDirectory($targetSkillsPath, 0755, true);
-    File::put($targetSkillsPath.'/marker.txt', 'original');
+    registerTestableCommand([
+        'runNpxSkillsAdd' => function ($packagePath) use (&$capturedPath) {
+            $capturedPath = $packagePath;
 
-    $this->artisan('turbo:publish', ['--skills' => ['laravel-actions'], '--force' => true, '--no-interaction' => true])
+            return 0;
+        },
+    ]);
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    // Marker file should be gone (directory was replaced)
-    expect(File::exists($targetSkillsPath.'/marker.txt'))->toBeFalse();
-    // SKILL.md should exist
-    expect(File::exists($targetSkillsPath.'/SKILL.md'))->toBeTrue();
+    expect($capturedPath)->toEndWith('turbo');
 });
 
-it('creates target directories if they do not exist', function () {
-    $targetSkillsPath = base_path('.claude/skills');
+it('processes templates after npx skills installs', function () {
+    registerTestableCommand([
+        'runNpxSkillsAdd' => function () {
+            // Simulate npx skills installing a skill with template placeholders
+            $skillsPath = base_path('.claude/skills/github-issue');
+            File::makeDirectory($skillsPath, 0755, true);
+            File::copyDirectory(
+                dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                $skillsPath
+            );
 
-    expect(File::isDirectory($targetSkillsPath))->toBeFalse();
+            return 0;
+        },
+    ]);
 
-    $this->artisan('turbo:publish', ['--skills' => ['laravel-actions'], '--force' => true, '--no-interaction' => true])
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    expect(File::isDirectory($targetSkillsPath))->toBeTrue();
+    $processedContent = File::get(base_path('.claude/skills/github-issue/SKILL.md'));
+    expect($processedContent)->not->toContain('{{ $feedback_loops }}');
+    expect($processedContent)->toContain('`composer lint`');
+});
+
+it('processes templates across multiple agent directories', function () {
+    registerTestableCommand([
+        'runNpxSkillsAdd' => function () {
+            // Simulate npx skills installing to both .claude and .cursor
+            foreach (['.claude/skills/github-issue', '.cursor/skills/github-issue'] as $path) {
+                $skillsPath = base_path($path);
+                File::makeDirectory($skillsPath, 0755, true);
+                File::copyDirectory(
+                    dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                    $skillsPath
+                );
+            }
+
+            return 0;
+        },
+    ]);
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
+        ->assertSuccessful();
+
+    // Both locations should have processed templates
+    foreach (['.claude/skills/github-issue', '.cursor/skills/github-issue'] as $path) {
+        $content = File::get(base_path($path.'/SKILL.md'));
+        expect($content)->not->toContain('{{ $feedback_loops }}');
+        expect($content)->toContain('`composer lint`');
+    }
+});
+
+it('skips symlinked skill directories during template processing', function () {
+    registerTestableCommand([
+        'runNpxSkillsAdd' => function () {
+            // Create canonical skill with template placeholders
+            $sourcePath = base_path('.claude/skills/github-issue');
+            File::makeDirectory($sourcePath, 0755, true);
+            File::copyDirectory(
+                dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                $sourcePath
+            );
+
+            // Create a symlinked skill directory in .cursor (how npx skills works)
+            $cursorPath = base_path('.cursor/skills');
+            File::makeDirectory($cursorPath, 0755, true);
+            symlink($sourcePath, $cursorPath.'/github-issue');
+
+            return 0;
+        },
+    ]);
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
+        ->assertSuccessful();
+
+    // The real file should be processed
+    $content = File::get(base_path('.claude/skills/github-issue/SKILL.md'));
+    expect($content)->not->toContain('{{ $feedback_loops }}');
+
+    // The symlinked directory should have been skipped (not processed independently)
+    expect(is_link(base_path('.cursor/skills/github-issue')))->toBeTrue();
+});
+
+it('outputs intro message before running npx skills', function () {
+    registerTestableCommand(['npxExitCode' => 0]);
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
+        ->expectsOutput('Installing skills via npx skills (https://skills.sh)...')
+        ->assertSuccessful();
 });
 
 it('skips github token prompt if settings.local.json already exists', function () {
@@ -86,27 +198,29 @@ it('skips github token prompt if settings.local.json already exists', function (
     File::makeDirectory($claudeDir, 0755, true);
     File::put($settingsPath, json_encode(['existing' => true]));
 
-    $this->artisan('turbo:publish', ['--skills' => ['laravel-actions'], '--force' => true, '--no-interaction' => true])
+    registerTestableCommand(['npxExitCode' => 0]);
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
         ->assertSuccessful()
-        ->doesntExpectOutput('Created .claude/settings.local.json with GitHub token');
+        ->doesntExpectOutput('Created '.$settingsPath.' with GitHub token');
 });
 
 it('skips github token prompt in non-interactive mode', function () {
-    $this->artisan('turbo:publish', ['--skills' => ['laravel-actions'], '--force' => true, '--no-interaction' => true])
-        ->assertSuccessful()
-        ->doesntExpectOutput('Created .claude/settings.local.json with GitHub token');
+    registerTestableCommand(['npxExitCode' => 0]);
 
-    // settings.local.json should NOT be created in non-interactive mode
-    expect(File::exists(base_path('.claude/settings.local.json')))->toBeFalse();
+    $settingsPath = base_path('.claude/settings.local.json');
+
+    $this->artisan('turbo:publish', ['--no-interaction' => true])
+        ->assertSuccessful()
+        ->doesntExpectOutput('Created '.$settingsPath.' with GitHub token');
+
+    expect(File::exists($settingsPath))->toBeFalse();
 });
 
 it('adds settings.local.json to gitignore', function () {
     $gitignorePath = base_path('.gitignore');
-
-    // Create a .gitignore file
     File::put($gitignorePath, "/vendor\n");
 
-    // Call addToGitignore directly via the Filesystem
     $files = app(\Illuminate\Filesystem\Filesystem::class);
     $contents = $files->get($gitignorePath);
     $pattern = '.claude/settings.local.json';
@@ -122,11 +236,8 @@ it('adds settings.local.json to gitignore', function () {
 
 it('does not duplicate gitignore entry if already present', function () {
     $gitignorePath = base_path('.gitignore');
-
-    // Create a .gitignore file that already has the entry
     File::put($gitignorePath, "/vendor\n.claude/settings.local.json\n");
 
-    // Simulate the addToGitignore logic
     $files = app(\Illuminate\Filesystem\Filesystem::class);
     $contents = $files->get($gitignorePath);
     $pattern = '.claude/settings.local.json';

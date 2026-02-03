@@ -4,19 +4,15 @@ namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Collection;
 use Springloaded\Turbo\Services\SkillsService;
+use Symfony\Component\Process\Process;
 
 use function Laravel\Prompts\confirm;
-use function Laravel\Prompts\multiselect;
 use function Laravel\Prompts\text;
 
 class PublishSkillsCommand extends Command
 {
-    public $signature = 'turbo:publish
-        {--all : Publish all skills without prompting}
-        {--force : Overwrite existing skills without prompting}
-        {--skills=* : Specific skills to publish}';
+    public $signature = 'turbo:publish';
 
     public $description = 'Publish AI skills from Turbo to your project';
 
@@ -29,116 +25,117 @@ class PublishSkillsCommand extends Command
 
     public function handle(): int
     {
-        $availableSkills = $this->skills->discover();
+        if (! $this->checkNpxAvailable()) {
+            $this->error('npx is required to install skills. Please install Node.js and npm first.');
+            $this->line('See: https://nodejs.org/');
 
-        if ($availableSkills->isEmpty()) {
+            return self::FAILURE;
+        }
+
+        $packagePath = $this->skills->getPackagePath();
+
+        if (! $this->files->isDirectory($packagePath.'/.ai/skills')) {
             $this->error('No skills found in package.');
 
             return self::FAILURE;
         }
 
-        $skillsToPublish = $this->resolveSkillsToPublish($availableSkills);
-
-        if (empty($skillsToPublish)) {
-            $this->info('No skills selected for publishing.');
-
-            return self::SUCCESS;
-        }
-
-        $skillsToPublish = $this->resolveConflicts($skillsToPublish);
-
-        if (empty($skillsToPublish)) {
-            $this->info('No skills to publish after conflict resolution.');
-
-            return self::SUCCESS;
-        }
-
-        $this->publishSkills($skillsToPublish);
-        $this->configureGitHubToken();
-
+        $this->info('Installing skills via npx skills (https://skills.sh)...');
+        $this->line('Source: '.$packagePath);
         $this->newLine();
-        $this->info('Published skills:');
-        $targetPath = $this->skills->getTargetSkillsPath();
-        foreach ($skillsToPublish as $skill) {
-            $this->line("  - {$targetPath}/{$skill['name']}");
+
+        // Run npx skills add interactively
+        $exitCode = $this->runNpxSkillsAdd($packagePath);
+
+        if ($exitCode !== 0) {
+            $this->error('Failed to install skills via npx skills.');
+
+            return self::FAILURE;
         }
+
+        // Process templates in installed locations
+        $this->processInstalledSkills();
+
+        // Configure GitHub token
+        $this->configureGitHubToken();
 
         return self::SUCCESS;
     }
 
     /**
-     * Resolve which skills to publish based on options or prompts.
+     * Check if npx is available on the system.
      */
-    protected function resolveSkillsToPublish(Collection $available): array
+    protected function checkNpxAvailable(): bool
     {
-        // Handle --skills option
-        $specificSkills = $this->option('skills');
-        if (! empty($specificSkills)) {
-            return $this->skills->findMany($specificSkills)->all();
-        }
+        $process = Process::fromShellCommandline('npx --version');
+        $process->run();
 
-        // Handle --all option
-        if ($this->option('all')) {
-            return $available->all();
-        }
+        return $process->isSuccessful();
+    }
 
-        // Interactive selection
-        $options = $available->mapWithKeys(function ($skill) {
-            return [$skill['name'] => "{$skill['name']}: {$skill['description']}"];
-        })->all();
-
-        $selected = multiselect(
-            label: 'Which skills would you like to publish?',
-            options: $options,
-            default: array_keys($options),
+    /**
+     * Run npx skills add interactively with TTY passthrough.
+     *
+     * Pre-selects all skills with --skill '*', then lets the user
+     * choose which agents to install to via the interactive prompt.
+     */
+    protected function runNpxSkillsAdd(string $packagePath): int
+    {
+        $process = new Process(
+            ['npx', 'skills', 'add', $packagePath, '--skill', '*'],
+            base_path()
         );
+        $process->setTimeout(null);
+        $process->setTty(Process::isTtySupported());
+        $process->run();
 
-        return $this->skills->findMany($selected)->all();
+        return $process->getExitCode();
     }
 
     /**
-     * Check for existing skills and resolve conflicts.
+     * Process templates in all installed skill locations.
      */
-    protected function resolveConflicts(array $skills): array
+    protected function processInstalledSkills(): void
     {
-        if ($this->option('force')) {
-            return $skills;
+        $paths = $this->skills->getInstalledSkillPaths();
+
+        $processed = false;
+
+        foreach ($paths as $agentPath) {
+            foreach ($this->files->directories($agentPath) as $skillDir) {
+                // Skip symlinked skill directories to avoid modifying the canonical copy twice
+                if (is_link($skillDir)) {
+                    continue;
+                }
+
+                $this->processSkillTemplates($skillDir);
+                $processed = true;
+            }
         }
 
-        return collect($skills)->filter(function ($skill) {
-            if (! $this->skills->existsInTarget($skill['name'])) {
-                return true;
-            }
-
-            return confirm(
-                label: "Skill '{$skill['name']}' already exists. Overwrite?",
-                default: false,
-            );
-        })->values()->all();
+        if ($processed) {
+            $this->info('Processed skill templates with project configuration.');
+            $this->displayFeedbackLoopConfig();
+        }
     }
 
     /**
-     * Publish selected skills to the target directory.
+     * Display the current feedback loop configuration.
      */
-    protected function publishSkills(array $skills): void
+    protected function displayFeedbackLoopConfig(): void
     {
-        $targetPath = $this->skills->getTargetSkillsPath();
+        $feedbackLoops = $this->skills->getFeedbackLoops();
 
-        if (! $this->files->isDirectory($targetPath)) {
-            $this->files->makeDirectory($targetPath, 0755, true);
+        $this->newLine();
+        $this->line('Feedback loops injected into skill templates:');
+
+        foreach ($feedbackLoops as $command) {
+            $this->line('  - '.$command);
         }
 
-        foreach ($skills as $skill) {
-            $destination = $targetPath.'/'.$skill['name'];
-
-            if ($this->files->isDirectory($destination)) {
-                $this->files->deleteDirectory($destination);
-            }
-
-            $this->files->copyDirectory($skill['path'], $destination);
-            $this->processSkillTemplates($destination);
-            $this->info("Published skill: {$skill['name']}");
-        }
+        $this->newLine();
+        $this->line('To customize, publish the config and edit the <comment>feedback_loops</comment> array:');
+        $this->line('  <comment>php artisan vendor:publish --tag=turbo-config</comment>');
     }
 
     /**
@@ -194,7 +191,7 @@ class PublishSkillsCommand extends Command
             json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
         );
 
-        $this->info('Created .claude/settings.local.json with GitHub token');
+        $this->info('Created '.$settingsPath.' with GitHub token');
 
         // Add to .gitignore if needed
         $this->addToGitignore();
@@ -240,6 +237,6 @@ class PublishSkillsCommand extends Command
         $addition = "\n# Claude local settings (contains secrets)\n{$pattern}\n";
         $this->files->append($gitignorePath, $addition);
 
-        $this->info('Added .claude/settings.local.json to .gitignore');
+        $this->info('Added .claude/settings.local.json to '.$gitignorePath);
     }
 }

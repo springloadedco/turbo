@@ -2,6 +2,7 @@
 
 namespace Springloaded\Turbo;
 
+use Illuminate\Support\Facades\File;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Springloaded\Turbo\Commands\ClaudeCommand;
@@ -29,5 +30,14 @@ class TurboServiceProvider extends PackageServiceProvider
                 PromptCommand::class,
                 PublishSkillsCommand::class,
             ]);
+    }
+
+    public function bootingPackage(): void
+    {
+        $configPath = config_path('turbo.php');
+
+        if (! File::exists($configPath) && ! $this->app->runningUnitTests()) {
+            File::copy(__DIR__.'/../config/turbo.php', $configPath);
+        }
     }
 }

@@ -2,112 +2,78 @@
 
 use Springloaded\Turbo\Services\SkillsService;
 
-it('discovers skills from package directory', function () {
+it('returns correct package path', function () {
     $service = app(SkillsService::class);
 
-    $skills = $service->discover();
-
-    expect($skills)->toHaveCount(9);
-    expect($skills->pluck('name')->toArray())->toContain(
-        'github-issue',
-        'github-labels',
-        'github-milestone',
-        'github-pr-comment',
-        'laravel-actions',
-        'laravel-controllers',
-        'laravel-inertia',
-        'laravel-testing',
-        'laravel-validation'
-    );
+    expect($service->getPackagePath())->toEndWith('/turbo');
 });
 
-it('returns skill with name description and path', function () {
+it('returns installed skill paths for existing directories', function () {
     $service = app(SkillsService::class);
 
-    $skills = $service->discover();
-    $skill = $skills->firstWhere('name', 'laravel-actions');
+    // No agent directories exist by default in test
+    $paths = $service->getInstalledSkillPaths();
 
-    expect($skill)->toHaveKeys(['name', 'description', 'path']);
-    expect($skill['name'])->toBe('laravel-actions');
-    expect($skill['description'])->toContain('Action class patterns');
-    expect($skill['path'])->toEndWith('/laravel-actions');
+    expect($paths)->toBeArray();
 });
 
-it('finds a specific skill by name', function () {
+it('processes template placeholders', function () {
     $service = app(SkillsService::class);
 
-    $skill = $service->find('laravel-actions');
+    $content = 'Run {{ $feedback_loops }} to verify.';
+    $processed = $service->processTemplate($content);
 
-    expect($skill)->not->toBeNull();
-    expect($skill['name'])->toBe('laravel-actions');
+    expect($processed)->not->toContain('{{ $feedback_loops }}');
+    expect($processed)->toContain('`composer lint`');
 });
 
-it('returns null for non-existent skill', function () {
+it('processes checklist template placeholders', function () {
     $service = app(SkillsService::class);
 
-    $skill = $service->find('non-existent-skill');
+    $content = "## Checklist\n{{ \$feedback_loops_checklist }}";
+    $processed = $service->processTemplate($content);
 
-    expect($skill)->toBeNull();
+    expect($processed)->not->toContain('{{ $feedback_loops_checklist }}');
+    expect($processed)->toContain('- [ ] `composer lint` passes');
 });
 
-it('finds multiple skills by name', function () {
+it('formats commands as inline code list', function () {
     $service = app(SkillsService::class);
 
-    $skills = $service->findMany(['laravel-actions', 'laravel-testing']);
+    $result = $service->formatInline(['composer lint', 'npm run test']);
 
-    expect($skills)->toHaveCount(2);
-    expect($skills->pluck('name')->toArray())->toBe(['laravel-actions', 'laravel-testing']);
+    expect($result)->toBe('`composer lint`, `npm run test`');
 });
 
-it('parses yaml frontmatter correctly', function () {
+it('formats commands as markdown checklist', function () {
     $service = app(SkillsService::class);
 
-    $content = <<<'MD'
----
-name: test-skill
-description: A test skill for testing
-allowed-tools: Read, Write
----
+    $result = $service->formatChecklist(['composer lint', 'npm run test']);
 
-# Test Skill
+    expect($result)->toBe("- [ ] `composer lint` passes\n- [ ] `npm run test` passes");
+});
 
-Content here.
-MD;
+it('returns configured feedback loops', function () {
+    $service = app(SkillsService::class);
 
-    $result = $service->parseFrontmatter($content);
+    $loops = $service->getFeedbackLoops();
 
-    expect($result)->toBe([
-        'name' => 'test-skill',
-        'description' => 'A test skill for testing',
-        'allowed-tools' => 'Read, Write',
+    expect($loops)->toBeArray();
+    expect($loops)->toContain('composer lint');
+});
+
+it('returns default feedback loops', function () {
+    $service = app(SkillsService::class);
+
+    $defaults = $service->getDefaultFeedbackLoops();
+
+    expect($defaults)->toBe([
+        'composer lint',
+        'composer test',
+        'composer analyse',
+        'npm run lint',
+        'npm run types',
+        'npm run build',
+        'npm run test',
     ]);
-});
-
-it('returns empty array for content without frontmatter', function () {
-    $service = app(SkillsService::class);
-
-    $content = '# No frontmatter here';
-
-    $result = $service->parseFrontmatter($content);
-
-    expect($result)->toBe([]);
-});
-
-it('checks if skill exists in target', function () {
-    $service = app(SkillsService::class);
-
-    // Before publishing, skill should not exist
-    expect($service->existsInTarget('laravel-actions'))->toBeFalse();
-});
-
-it('returns correct package skills path', function () {
-    $service = app(SkillsService::class);
-
-    expect($service->getPackageSkillsPath())->toEndWith('/.ai/skills');
-});
-
-it('returns correct target skills path', function () {
-    $service = app(SkillsService::class);
-
-    expect($service->getTargetSkillsPath())->toBe(base_path('.claude/skills'));
 });
