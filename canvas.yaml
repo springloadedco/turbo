@@ -1,0 +1,15 @@
+preset: package
+
+namespace: Springloaded\Turbo
+
+paths:
+  src: src
+
+console:
+  namespace: Springloaded\Turbo\Commands
+
+provider:
+  namespace: Springloaded\Turbo
+
+testing:
+  namespace: Springloaded\Turbo\Tests

@@ -4,6 +4,10 @@ namespace Springloaded\Turbo;
 
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Springloaded\Turbo\Commands\ClaudeCommand;
+use Springloaded\Turbo\Commands\DockerBuildCommand;
+use Springloaded\Turbo\Commands\PromptCommand;
+use Springloaded\Turbo\Commands\PublishSkillsCommand;
 use Springloaded\Turbo\Commands\TurboCommand;
 
 class TurboServiceProvider extends PackageServiceProvider
@@ -18,8 +22,12 @@ class TurboServiceProvider extends PackageServiceProvider
         $package
             ->name('turbo')
             ->hasConfigFile()
-            ->hasViews()
-            ->hasMigration('create_turbo_table')
-            ->hasCommand(TurboCommand::class);
+            ->hasCommands([
+                TurboCommand::class,
+                DockerBuildCommand::class,
+                ClaudeCommand::class,
+                PromptCommand::class,
+                PublishSkillsCommand::class,
+            ]);
     }
 }
