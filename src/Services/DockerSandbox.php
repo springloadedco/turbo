@@ -74,7 +74,7 @@ class DockerSandbox
         ]);
 
         $process->setTimeout(null);
-        
+
         if (Process::isTtySupported()) {
             $process->setPty(true);
         }

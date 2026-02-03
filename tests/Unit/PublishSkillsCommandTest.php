@@ -69,24 +69,17 @@ function registerTestableCommand(array $overrides = []): void
 }
 
 /**
- * Create a testable command that exposes the addToGitignore method.
+ * Call the protected addToGitignore method on a PublishSkillsCommand instance.
  */
-function createGitignoreTestCommand()
+function callAddToGitignore(): void
 {
-    return new class extends PublishSkillsCommand {
-        public function __construct()
-        {
-            parent::__construct(
-                app(SkillsService::class),
-                app(\Illuminate\Filesystem\Filesystem::class)
-            );
-        }
+    $command = new PublishSkillsCommand(
+        app(SkillsService::class),
+        app(\Illuminate\Filesystem\Filesystem::class)
+    );
 
-        public function testAddToGitignore(): void
-        {
-            $this->addToGitignore();
-        }
-    };
+    $reflection = new ReflectionMethod(PublishSkillsCommand::class, 'addToGitignore');
+    $reflection->invoke($command);
 }
 
 it('fails when npx is not available', function () {
@@ -242,8 +235,7 @@ it('adds settings.local.json to gitignore', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n");
 
-    $command = createGitignoreTestCommand();
-    $command->testAddToGitignore();
+    callAddToGitignore();
 
     $contents = File::get($gitignorePath);
     expect($contents)->toContain('.claude/settings.local.json');
@@ -253,8 +245,7 @@ it('does not duplicate gitignore entry if already present', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n.claude/settings.local.json\n");
 
-    $command = createGitignoreTestCommand();
-    $command->testAddToGitignore();
+    callAddToGitignore();
 
     $contents = File::get($gitignorePath);
     $count = substr_count($contents, '.claude/settings.local.json');
