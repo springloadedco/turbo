@@ -43,7 +43,7 @@ return [
         | containing the Dockerfile is used as the build context.
         |
         */
-        'dockerfile' => env('TURBO_DOCKER_DOCKERFILE', __DIR__.'/../Dockerfile'),
+        'dockerfile' => env('TURBO_DOCKER_DOCKERFILE', base_path('Dockerfile')),
 
         /*
         |--------------------------------------------------------------------------

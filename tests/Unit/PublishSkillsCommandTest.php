@@ -166,7 +166,11 @@ it('skips symlinked skill directories during template processing', function () {
             // Create a symlinked skill directory in .cursor (how npx skills works)
             $cursorPath = base_path('.cursor/skills');
             File::makeDirectory($cursorPath, 0755, true);
-            symlink($sourcePath, $cursorPath.'/github-issue');
+            
+            // Skip test on Windows where symlinks require special permissions
+            if (! @symlink($sourcePath, $cursorPath.'/github-issue')) {
+                $this->markTestSkipped('Symlinks are not supported on this system');
+            }
 
             return 0;
         },
@@ -181,7 +185,7 @@ it('skips symlinked skill directories during template processing', function () {
 
     // The symlinked directory should have been skipped (not processed independently)
     expect(is_link(base_path('.cursor/skills/github-issue')))->toBeTrue();
-});
+})->skip(PHP_OS_FAMILY === 'Windows', 'Symlinks require special permissions on Windows');
 
 it('outputs intro message before running npx skills', function () {
     registerTestableCommand(['npxExitCode' => 0]);
@@ -221,14 +225,23 @@ it('adds settings.local.json to gitignore', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n");
 
-    $files = app(\Illuminate\Filesystem\Filesystem::class);
-    $contents = $files->get($gitignorePath);
-    $pattern = '.claude/settings.local.json';
+    // Create a testable command that exposes the addToGitignore method
+    $command = new class extends PublishSkillsCommand {
+        public function __construct()
+        {
+            parent::__construct(
+                app(SkillsService::class),
+                app(\Illuminate\Filesystem\Filesystem::class)
+            );
+        }
 
-    if (! str_contains($contents, $pattern)) {
-        $addition = "\n# Claude local settings (contains secrets)\n{$pattern}\n";
-        $files->append($gitignorePath, $addition);
-    }
+        public function testAddToGitignore(): void
+        {
+            $this->addToGitignore();
+        }
+    };
+
+    $command->testAddToGitignore();
 
     $contents = File::get($gitignorePath);
     expect($contents)->toContain('.claude/settings.local.json');
@@ -238,14 +251,23 @@ it('does not duplicate gitignore entry if already present', function () {
     $gitignorePath = base_path('.gitignore');
     File::put($gitignorePath, "/vendor\n.claude/settings.local.json\n");
 
-    $files = app(\Illuminate\Filesystem\Filesystem::class);
-    $contents = $files->get($gitignorePath);
-    $pattern = '.claude/settings.local.json';
+    // Create a testable command that exposes the addToGitignore method
+    $command = new class extends PublishSkillsCommand {
+        public function __construct()
+        {
+            parent::__construct(
+                app(SkillsService::class),
+                app(\Illuminate\Filesystem\Filesystem::class)
+            );
+        }
 
-    if (! str_contains($contents, $pattern)) {
-        $addition = "\n# Claude local settings (contains secrets)\n{$pattern}\n";
-        $files->append($gitignorePath, $addition);
-    }
+        public function testAddToGitignore(): void
+        {
+            $this->addToGitignore();
+        }
+    };
+
+    $command->testAddToGitignore();
 
     $contents = File::get($gitignorePath);
     $count = substr_count($contents, '.claude/settings.local.json');
