@@ -7,8 +7,12 @@ it('discovers skills from package directory', function () {
 
     $skills = $service->discover();
 
-    expect($skills)->toHaveCount(5);
+    expect($skills)->toHaveCount(9);
     expect($skills->pluck('name')->toArray())->toContain(
+        'github-issue',
+        'github-labels',
+        'github-milestone',
+        'github-pr-comment',
         'laravel-actions',
         'laravel-controllers',
         'laravel-inertia',
@@ -105,5 +109,5 @@ it('returns correct package skills path', function () {
 it('returns correct target skills path', function () {
     $service = app(SkillsService::class);
 
-    expect($service->getTargetSkillsPath())->toBe(base_path('.ai/skills'));
+    expect($service->getTargetSkillsPath())->toBe(base_path('.claude/skills'));
 });

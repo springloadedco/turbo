@@ -58,8 +58,9 @@ class PublishSkillsCommand extends Command
 
         $this->newLine();
         $this->info('Published skills:');
+        $targetPath = $this->skills->getTargetSkillsPath();
         foreach ($skillsToPublish as $skill) {
-            $this->line("  - {$skill['name']}");
+            $this->line("  - {$targetPath}/{$skill['name']}");
         }
 
         return self::SUCCESS;
@@ -135,6 +136,7 @@ class PublishSkillsCommand extends Command
             }
 
             $this->files->copyDirectory($skill['path'], $destination);
+            $this->processSkillTemplates($destination);
             $this->info("Published skill: {$skill['name']}");
         }
     }
@@ -196,6 +198,23 @@ class PublishSkillsCommand extends Command
 
         // Add to .gitignore if needed
         $this->addToGitignore();
+    }
+
+    /**
+     * Process template placeholders in skill markdown files.
+     */
+    protected function processSkillTemplates(string $skillPath): void
+    {
+        $mdFiles = $this->files->glob($skillPath.'/*.md');
+
+        foreach ($mdFiles as $file) {
+            $content = $this->files->get($file);
+            $processed = $this->skills->processTemplate($content);
+
+            if ($processed !== $content) {
+                $this->files->put($file, $processed);
+            }
+        }
     }
 
     /**

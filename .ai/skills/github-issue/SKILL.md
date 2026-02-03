@@ -16,11 +16,7 @@ Issues represent individual tasks of a given milestone (plan) completable in a s
 ## Acceptance Criteria
 - [ ] Specific, verifiable criterion
 - [ ] Another criterion
-- [ ] `npm run types` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run build` succeeds
-- [ ] `composer lint` passes
-- [ ] `composer test` passes
+{{ $feedback_loops_checklist }}
 
 ## Files
 - `path/to/affected/file.php`
@@ -36,18 +32,11 @@ Issues represent individual tasks of a given milestone (plan) completable in a s
 
 ## Standard Acceptance Criteria
 
-EVERY issue must include feedback loop criteria relevant to the project's tech stack. Include commands that verify the code works:
+EVERY issue must include feedback loop criteria relevant to the project's tech stack. Include commands that verify the code works: {{ $feedback_loops }}
 
-- **PHP projects**: `composer lint`, `composer test`, `composer analyse`
-- **Node projects**: `npm run lint`, `npm run types`, `npm run build`, `npm run test`
-- **Mixed stacks**: Include both as appropriate
-
-Example for a Laravel + Inertia project:
+Example:
 ```markdown
-- [ ] `composer lint` passes
-- [ ] `composer test` passes
-- [ ] `npm run types` passes
-- [ ] `npm run build` succeeds
+{{ $feedback_loops_checklist }}
 ```
 
 ## Example
@@ -61,11 +50,7 @@ Create PHP service wrapping Laravel-GitHub for API calls. Single point of access
 - [ ] `getMilestone()` returns single milestone by number
 - [ ] `getIssuesForMilestone()` returns issues with labels
 - [ ] Handles non-existent resources gracefully
-- [ ] `npm run types` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run build` succeeds
-- [ ] `composer lint` passes
-- [ ] `composer test` passes
+{{ $feedback_loops_checklist }}
 
 ## Files
 - `app/Services/Ralph/GitHubService.php`

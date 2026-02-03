@@ -2,6 +2,26 @@
 
 return [
 
+    /*
+    |--------------------------------------------------------------------------
+    | Feedback Loops
+    |--------------------------------------------------------------------------
+    |
+    | Commands that verify code quality during development. These are injected
+    | into skill templates at publish time using {{ $feedback_loops }} (inline)
+    | or {{ $feedback_loops_checklist }} (markdown checklist) placeholders.
+    |
+    */
+    'feedback_loops' => [
+        'composer lint',
+        'composer test',
+        'composer analyse',
+        'npm run lint',
+        'npm run types',
+        'npm run build',
+        'npm run test',
+    ],
+
     'docker' => [
         /*
         |--------------------------------------------------------------------------

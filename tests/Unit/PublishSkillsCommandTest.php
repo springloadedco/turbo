@@ -4,12 +4,8 @@ use Illuminate\Support\Facades\File;
 
 beforeEach(function () {
     // Clean up any test artifacts
-    $targetSkillsPath = base_path('.ai/skills');
     $targetClaudePath = base_path('.claude');
 
-    if (File::isDirectory($targetSkillsPath)) {
-        File::deleteDirectory($targetSkillsPath);
-    }
     if (File::isDirectory($targetClaudePath)) {
         File::deleteDirectory($targetClaudePath);
     }
@@ -17,12 +13,8 @@ beforeEach(function () {
 
 afterEach(function () {
     // Clean up after tests
-    $targetSkillsPath = base_path('.ai/skills');
     $targetClaudePath = base_path('.claude');
 
-    if (File::isDirectory($targetSkillsPath)) {
-        File::deleteDirectory($targetSkillsPath);
-    }
     if (File::isDirectory($targetClaudePath)) {
         File::deleteDirectory($targetClaudePath);
     }
@@ -40,7 +32,7 @@ it('publishes all skills with --all flag', function () {
     $this->artisan('turbo:publish', ['--all' => true, '--no-interaction' => true])
         ->assertSuccessful();
 
-    $targetSkillsPath = base_path('.ai/skills');
+    $targetSkillsPath = base_path('.claude/skills');
 
     expect(File::isDirectory($targetSkillsPath))->toBeTrue();
     expect(File::isDirectory($targetSkillsPath.'/laravel-actions'))->toBeTrue();
@@ -54,14 +46,14 @@ it('publishes specific skills with --skills option', function () {
     $this->artisan('turbo:publish', ['--skills' => ['laravel-actions'], '--no-interaction' => true])
         ->assertSuccessful();
 
-    $targetSkillsPath = base_path('.ai/skills');
+    $targetSkillsPath = base_path('.claude/skills');
 
     expect(File::isDirectory($targetSkillsPath.'/laravel-actions'))->toBeTrue();
     expect(File::isDirectory($targetSkillsPath.'/laravel-controllers'))->toBeFalse();
 });
 
 it('overwrites existing skills with --force flag', function () {
-    $targetSkillsPath = base_path('.ai/skills/laravel-actions');
+    $targetSkillsPath = base_path('.claude/skills/laravel-actions');
 
     // Create existing skill directory with a marker file
     File::makeDirectory($targetSkillsPath, 0755, true);
@@ -77,7 +69,7 @@ it('overwrites existing skills with --force flag', function () {
 });
 
 it('creates target directories if they do not exist', function () {
-    $targetSkillsPath = base_path('.ai/skills');
+    $targetSkillsPath = base_path('.claude/skills');
 
     expect(File::isDirectory($targetSkillsPath))->toBeFalse();
 
