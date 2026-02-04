@@ -23,6 +23,7 @@ it('creates a build process with correct command', function () {
     expect($commandLine)
         ->toContain('docker')
         ->toContain('build')
+        ->toContain('--progress=plain')
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('-f')
@@ -35,10 +36,11 @@ it('returns the correct build command', function () {
 
     expect($command[0])->toBe('docker');
     expect($command[1])->toBe('build');
-    expect($command[2])->toBe('-t');
-    expect($command[3])->toBe('turbo');
-    expect($command[4])->toBe('-f');
-    expect($command[5])->toContain('Dockerfile');
+    expect($command[2])->toBe('--progress=plain');
+    expect($command[3])->toBe('-t');
+    expect($command[4])->toBe('turbo');
+    expect($command[5])->toBe('-f');
+    expect($command[6])->toContain('Dockerfile');
 });
 
 it('creates a sandbox with --name flag', function () {

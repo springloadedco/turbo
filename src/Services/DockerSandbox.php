@@ -43,6 +43,7 @@ class DockerSandbox
     {
         return [
             'docker', 'build',
+            '--progress=plain',
             '-t', $this->image,
             '-f', $this->dockerfile,
             dirname($this->dockerfile),
@@ -61,6 +62,9 @@ class DockerSandbox
         return $process;
     }
 
+    /**
+     * Check if a sandbox with this name already exists.
+     */
     public function sandboxExists(): bool
     {
         $process = new Process([
@@ -79,6 +83,9 @@ class DockerSandbox
             ->contains($this->sandboxName());
     }
 
+    /**
+     * Create a new sandbox from the local image template.
+     */
     public function createSandbox(): Process
     {
         $process = new Process([
@@ -99,6 +106,9 @@ class DockerSandbox
         return $process;
     }
 
+    /**
+     * Run an existing sandbox by name (interactive session).
+     */
     public function runSandbox(): Process
     {
         $process = new Process([
@@ -119,6 +129,8 @@ class DockerSandbox
      * Create a process to run sandbox with a prompt (non-interactive).
      *
      * Reuses an existing sandbox if one is found, otherwise creates a new one.
+     * Uses PTY (pseudo-terminal) instead of TTY so the calling process can
+     * capture and stream the output back to the user's terminal.
      *
      * @see https://docs.docker.com/ai/sandboxes/claude-code/#pass-a-prompt-directly
      */
