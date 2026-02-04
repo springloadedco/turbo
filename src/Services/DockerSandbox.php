@@ -65,7 +65,7 @@ class DockerSandbox
     {
         $process = new Process([
             'docker', 'sandbox', 'ls',
-            '--json'
+            '--json',
         ]);
 
         $process->run();
@@ -74,7 +74,7 @@ class DockerSandbox
             return false;
         }
 
-        return collect(json_decode($process->getOutput(), true)["vms"] ?? [])
+        return collect(json_decode($process->getOutput(), true)['vms'] ?? [])
             ->pluck('name')
             ->contains($this->sandboxName());
     }
