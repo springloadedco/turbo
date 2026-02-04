@@ -16,5 +16,9 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
 RUN npm install -g agent-browser \
   && agent-browser install --with-deps
 
+# Configure gh as git credential helper so git clone works with GH_TOKEN at runtime
+RUN git config --system credential.https://github.com.helper '!/usr/bin/gh auth git-credential' \
+  && git config --system credential.https://gist.github.com.helper '!/usr/bin/gh auth git-credential'
+
 # IMPORTANT: run as the sandbox base user
 USER agent
