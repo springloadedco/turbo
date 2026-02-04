@@ -202,11 +202,6 @@ class InstallCommand extends Command
 
         $process = new Process($command, base_path());
         $process->setTimeout(null);
-
-        if (Process::isTtySupported()) {
-            $process->setTty(true);
-        }
-
         $process->run();
 
         return $process->getExitCode();

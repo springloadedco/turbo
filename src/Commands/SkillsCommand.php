@@ -70,7 +70,6 @@ class SkillsCommand extends Command
             base_path()
         );
         $process->setTimeout(null);
-        $process->setTty(Process::isTtySupported());
         $process->run();
 
         return $process->getExitCode();
