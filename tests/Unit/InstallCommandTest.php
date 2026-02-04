@@ -135,3 +135,16 @@ it('fails when turbo skill installation fails', function () {
         ->expectsOutput('Failed to install Turbo skills.')
         ->assertFailed();
 });
+
+it('fails when third-party skill installation fails', function () {
+    registerTestableInstallCommand([
+        'runNpxSkillsAdd' => function ($source) {
+            // Turbo skills succeed, third-party fails
+            return str_ends_with($source, 'turbo') ? 0 : 1;
+        },
+    ]);
+
+    $this->artisan('turbo:install', ['--no-interaction' => true])
+        ->expectsOutput('Failed to install agent-browser.')
+        ->assertFailed();
+});
