@@ -53,6 +53,15 @@ class PublishSkillsCommand extends Command
             return self::FAILURE;
         }
 
+        // Install agent-browser skill
+        $exitCode = $this->runNpxSkillsAddAgentBrowser();
+
+        if ($exitCode !== 0) {
+            $this->error('Failed to install agent-browser skill.');
+
+            return self::FAILURE;
+        }
+
         // Process templates in installed locations
         $this->processInstalledSkills();
 
@@ -83,6 +92,26 @@ class PublishSkillsCommand extends Command
     {
         $process = new Process(
             ['npx', 'skills', 'add', $packagePath, '--skill', '*'],
+            base_path()
+        );
+        $process->setTimeout(null);
+        $process->setTty(Process::isTtySupported());
+        $process->run();
+
+        return $process->getExitCode();
+    }
+
+    /**
+     * Install the agent-browser skill from vercel-labs.
+     */
+    protected function runNpxSkillsAddAgentBrowser(): int
+    {
+        $this->newLine();
+        $this->info('Installing agent-browser skill...');
+        $this->newLine();
+
+        $process = new Process(
+            ['npx', 'skills', 'add', 'https://github.com/vercel-labs/agent-browser', '--skill', 'agent-browser'],
             base_path()
         );
         $process->setTimeout(null);

@@ -32,7 +32,7 @@ return [
         | passed to `docker sandbox run`.
         |
         */
-        'image' => env('TURBO_DOCKER_IMAGE', 'turbo-sandbox'),
+        'image' => env('TURBO_DOCKER_IMAGE', 'turbo'),
 
         /*
         |--------------------------------------------------------------------------

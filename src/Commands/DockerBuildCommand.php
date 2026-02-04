@@ -14,11 +14,11 @@ class DockerBuildCommand extends Command
     public function handle(DockerSandbox $sandbox): int
     {
         $this->info('Building Turbo sandbox image...');
-        $this->newLine();
         $this->line('Dockerfile: '.$sandbox->dockerfile);
-        $this->newLine();
 
         $process = $sandbox->buildProcess();
+
+        $this->line('> '.implode(' ', $sandbox->buildCommand()));
 
         $process->run(function ($type, $buffer) {
             $this->output->write($buffer);

@@ -3,6 +3,7 @@
 namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 use Springloaded\Turbo\Services\DockerSandbox;
 
 class ClaudeCommand extends Command
@@ -13,7 +14,12 @@ class ClaudeCommand extends Command
 
     public function handle(DockerSandbox $sandbox): int
     {
-        $process = $sandbox->interactiveProcess();
+        $process = match ($sandbox->sandboxExists()) {
+            true => $sandbox->runSandbox(),
+            false => $sandbox->createSandbox(),
+        };
+
+        $this->info(Str::remove("'", $process->getCommandLine()));
 
         $process->run();
 

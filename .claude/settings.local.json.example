@@ -1,0 +1,7 @@
+{
+    "ANTHROPIC_API_KEY": "your_anthropic_api_key_here",
+
+    "env" {
+      "GH_TOKEN": "your_github_token_here"
+    }
+}

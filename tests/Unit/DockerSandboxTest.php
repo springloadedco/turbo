@@ -9,6 +9,12 @@ it('returns the correct dockerfile path', function () {
     expect(file_exists($sandbox->dockerfile))->toBeTrue();
 });
 
+it('returns the correct sandbox name', function () {
+    $sandbox = app(DockerSandbox::class);
+
+    expect($sandbox->sandboxName())->toBe('claude-turbo');
+});
+
 it('creates a build process with correct command', function () {
     $sandbox = app(DockerSandbox::class);
     $process = $sandbox->buildProcess();
@@ -18,30 +24,56 @@ it('creates a build process with correct command', function () {
         ->toContain('docker')
         ->toContain('build')
         ->toContain('-t')
-        ->toContain('turbo-sandbox')
+        ->toContain('turbo')
         ->toContain('-f')
         ->toContain('Dockerfile');
 });
 
-it('creates an interactive process with workspace from config', function () {
+it('returns the correct build command', function () {
+    $sandbox = app(DockerSandbox::class);
+    $command = $sandbox->buildCommand();
+
+    expect($command[0])->toBe('docker');
+    expect($command[1])->toBe('build');
+    expect($command[2])->toBe('-t');
+    expect($command[3])->toBe('turbo');
+    expect($command[4])->toBe('-f');
+    expect($command[5])->toContain('Dockerfile');
+});
+
+it('creates a sandbox with --name flag', function () {
     config()->set('turbo.docker.workspace', '/test/workspace');
 
     $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->interactiveProcess();
+    $process = $sandbox->createSandbox();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('docker')
+        ->toContain('sandbox')
+        ->toContain('create')
+        ->toContain('--load-local-template')
+        ->toContain("'-t'")
+        ->toContain('turbo')
+        ->toContain('--name')
+        ->toContain('claude-turbo')
+        ->toContain('claude')
+        ->toContain('/test/workspace');
+});
+
+it('runs an existing sandbox by name', function () {
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->runSandbox();
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('run')
-        ->toContain('--template')
-        ->toContain('turbo-sandbox')
-        ->toContain('--workspace')
-        ->toContain('/test/workspace')
-        ->toContain('claude');
+        ->toContain('claude-turbo');
 });
 
-it('creates a prompt process with workspace from config', function () {
+it('creates a prompt process that creates a new sandbox when none exists', function () {
     config()->set('turbo.docker.workspace', '/test/workspace');
 
     $sandbox = app(DockerSandbox::class);
@@ -52,11 +84,12 @@ it('creates a prompt process with workspace from config', function () {
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('run')
-        ->toContain('--template')
-        ->toContain('turbo-sandbox')
-        ->toContain('--workspace')
-        ->toContain('/test/workspace')
+        ->toContain('--load-local-template')
+        ->toContain('turbo')
+        ->toContain('--name')
+        ->toContain('claude-turbo')
         ->toContain('claude')
-        ->toContain('-p')
+        ->toContain('/test/workspace')
+        ->toContain('--')
         ->toContain('Hello Claude');
 });
