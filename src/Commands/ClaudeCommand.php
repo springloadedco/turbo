@@ -3,11 +3,13 @@
 namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
+use Springloaded\Turbo\Commands\Concerns\DisplaysCommands;
 use Springloaded\Turbo\Services\DockerSandbox;
 
 class ClaudeCommand extends Command
 {
+    use DisplaysCommands;
+
     protected $signature = 'turbo:claude';
 
     protected $description = 'Start an interactive Claude session in the Docker sandbox';
@@ -19,7 +21,7 @@ class ClaudeCommand extends Command
             false => $sandbox->createSandbox(),
         };
 
-        $this->info(Str::remove("'", $process->getCommandLine()));
+        $this->displayCommand($process);
 
         $process->run();
 

@@ -3,10 +3,13 @@
 namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
+use Springloaded\Turbo\Commands\Concerns\DisplaysCommands;
 use Springloaded\Turbo\Services\DockerSandbox;
 
 class DockerBuildCommand extends Command
 {
+    use DisplaysCommands;
+
     protected $signature = 'turbo:build';
 
     protected $description = 'Build the Turbo Docker sandbox image';
@@ -18,7 +21,7 @@ class DockerBuildCommand extends Command
 
         $process = $sandbox->buildProcess();
 
-        $this->line('> '.implode(' ', $sandbox->buildCommand()));
+        $this->displayCommand($process);
 
         $process->run(function ($type, $buffer) {
             $this->output->write($buffer);
