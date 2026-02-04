@@ -23,20 +23,28 @@ Turbo supercharges AI-assisted Laravel development by providing:
 composer require springloadedco/turbo --dev
 ```
 
-## Publishing Skills
+## Getting Started
 
-Run the publish command to install skills into your project:
+Run the install command to set up Turbo for your project:
 
 ```bash
-php artisan turbo:publish
+php artisan turbo:install
 ```
 
 This command:
 
-1. Runs `npx skills add` interactively, pre-selecting all available skills
-2. Prompts you to choose which agents to install to (Claude, Cursor, Codex, etc.)
-3. Processes skill templates, injecting your project's configured feedback loops
-4. Optionally configures a GitHub token for `gh` CLI access (stored in `.claude/settings.local.json`)
+1. Presents a multiselect of all available skills (Turbo skills + recommended third-party skills)
+2. Presents a multiselect of agents to install to (Claude Code, Cursor, Codex)
+3. Installs selected skills non-interactively via `npx skills add`
+4. Processes skill templates, injecting your project's configured feedback loops
+5. Optionally configures a GitHub token for `gh` CLI access (stored in `.claude/settings.local.json`)
+6. Optionally builds the Docker sandbox image
+
+To re-publish Turbo's skills after a package update:
+
+```bash
+php artisan turbo:skills
+```
 
 ## Skills
 
@@ -82,7 +90,7 @@ The config also includes Docker sandbox settings:
 
 ```php
 'docker' => [
-    'image'      => env('TURBO_DOCKER_IMAGE', 'turbo-sandbox'),
+    'image'      => env('TURBO_DOCKER_IMAGE', 'turbo'),
     'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
     'workspace'  => env('TURBO_DOCKER_WORKSPACE', base_path()),
 ],
@@ -90,7 +98,7 @@ The config also includes Docker sandbox settings:
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `image` | Docker image tag used for build and run | `turbo-sandbox` |
+| `image` | Docker image tag used for build and run | `turbo` |
 | `dockerfile` | Path to a custom Dockerfile (falls back to the one shipped with Turbo) | `null` |
 | `workspace` | Local directory mounted into the sandbox | `base_path()` |
 
@@ -98,7 +106,8 @@ The config also includes Docker sandbox settings:
 
 | Command | Description |
 |---------|-------------|
-| `turbo:publish` | Publish AI skills to your project (see [Publishing Skills](#publishing-skills)) |
+| `turbo:install` | Set up Turbo for your project (see [Getting Started](#getting-started)) |
+| `turbo:skills` | Re-publish Turbo skills after a package update |
 | `turbo:build` | Build the Docker sandbox image |
 | `turbo:claude` | Start an interactive Claude session in the Docker sandbox |
 | `turbo:prompt {prompt}` | Run Claude with a one-off prompt in the Docker sandbox |
