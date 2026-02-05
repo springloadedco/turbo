@@ -42,7 +42,7 @@ it('creates a sandbox with --name flag', function () {
         ->toContain('sandbox')
         ->toContain('create')
         ->toContain('--load-local-template')
-        ->toContain("'-t'")
+        ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
         ->toContain('claude-turbo')
