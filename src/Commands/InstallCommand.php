@@ -5,6 +5,7 @@ namespace Springloaded\Turbo\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Springloaded\Turbo\Commands\Concerns\ProcessesSkills;
+use Springloaded\Turbo\Services\FeedbackLoopDetector;
 use Springloaded\Turbo\Services\SkillsService;
 use Symfony\Component\Process\Process;
 
@@ -32,6 +33,7 @@ class InstallCommand extends Command
     public function __construct(
         protected SkillsService $skills,
         protected Filesystem $files,
+        protected FeedbackLoopDetector $detector,
     ) {
         parent::__construct();
     }
@@ -41,6 +43,9 @@ class InstallCommand extends Command
         $this->callSilently('vendor:publish', [
             '--tag' => 'turbo-config',
         ]);
+
+        // Step 1: Detect and configure feedback loops
+        $this->configureFeedbackLoops();
 
         if (! $this->checkNpxAvailable()) {
             $this->error('npx is required to install skills. Please install Node.js and npm first.');
@@ -113,6 +118,69 @@ class InstallCommand extends Command
         $this->info('Turbo installation complete!');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Detect feedback loops and optionally let the user confirm them.
+     */
+    protected function configureFeedbackLoops(): void
+    {
+        $detected = $this->detector->detect();
+
+        if (empty($detected)) {
+            return;
+        }
+
+        if ($this->input->isInteractive()) {
+            $options = [];
+            foreach ($detected as $cmd) {
+                $options[$cmd] = $cmd;
+            }
+
+            $detected = multiselect(
+                label: 'Which feedback loops should be injected into skills?',
+                options: $options,
+                default: array_keys($options),
+            );
+        }
+
+        if (empty($detected)) {
+            return;
+        }
+
+        $this->writeFeedbackLoopsToConfig($detected);
+    }
+
+    /**
+     * Write the selected feedback loop commands into the published config file.
+     *
+     * @param  array<string>  $commands
+     */
+    protected function writeFeedbackLoopsToConfig(array $commands): void
+    {
+        $configPath = config_path('turbo.php');
+
+        if (! $this->files->exists($configPath)) {
+            return;
+        }
+
+        $content = $this->files->get($configPath);
+
+        $replacement = "'feedback_loops' => [\n";
+        foreach ($commands as $cmd) {
+            $replacement .= "        '{$cmd}',\n";
+        }
+        $replacement .= '    ]';
+
+        $content = preg_replace(
+            "/'feedback_loops'\s*=>\s*\[[^\]]*\]/s",
+            $replacement,
+            $content
+        );
+
+        $this->files->put($configPath, $content);
+
+        config(['turbo.feedback_loops' => $commands]);
     }
 
     /**
