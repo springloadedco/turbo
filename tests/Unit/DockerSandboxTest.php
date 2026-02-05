@@ -23,24 +23,11 @@ it('creates a build process with correct command', function () {
     expect($commandLine)
         ->toContain('docker')
         ->toContain('build')
-        ->toContain('--progress=plain')
+        ->toContain('--progress=quiet')
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('-f')
         ->toContain('Dockerfile');
-});
-
-it('returns the correct build command', function () {
-    $sandbox = app(DockerSandbox::class);
-    $command = $sandbox->buildCommand();
-
-    expect($command[0])->toBe('docker');
-    expect($command[1])->toBe('build');
-    expect($command[2])->toBe('--progress=plain');
-    expect($command[3])->toBe('-t');
-    expect($command[4])->toBe('turbo');
-    expect($command[5])->toBe('-f');
-    expect($command[6])->toContain('Dockerfile');
 });
 
 it('creates a sandbox with --name flag', function () {
@@ -76,10 +63,12 @@ it('runs an existing sandbox by name', function () {
 });
 
 it('creates a prompt process that creates a new sandbox when none exists', function () {
-    config()->set('turbo.docker.workspace', '/test/workspace');
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->image = 'turbo';
+    $sandbox->workspace = '/test/workspace';
+    $sandbox->shouldReceive('sandboxExists')->andReturn(false);
 
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->promptProcess('Hello Claude');
+    $process = $sandbox->prompt('Hello Claude');
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
@@ -94,4 +83,24 @@ it('creates a prompt process that creates a new sandbox when none exists', funct
         ->toContain('/test/workspace')
         ->toContain('--')
         ->toContain('Hello Claude');
+});
+
+it('creates a prompt process that reuses an existing sandbox', function () {
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->image = 'turbo';
+    $sandbox->workspace = '/test/workspace';
+    $sandbox->shouldReceive('sandboxExists')->andReturn(true);
+
+    $process = $sandbox->prompt('Hello Claude');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('docker')
+        ->toContain('sandbox')
+        ->toContain('run')
+        ->toContain('claude-turbo')
+        ->toContain('--')
+        ->toContain('Hello')
+        ->toContain('Claude')
+        ->not->toContain('--load-local-template');
 });
