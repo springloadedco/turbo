@@ -63,6 +63,11 @@ function registerTestableInstallCommand(array $overrides = []): void
 
             return $this->testOverrides['npxExitCode'] ?? 0;
         }
+
+        protected function configureSecrets(): void
+        {
+            // Skip secrets configuration in tests
+        }
     };
 
     app(Kernel::class)->registerCommand($command);

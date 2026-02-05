@@ -108,8 +108,8 @@ class InstallCommand extends Command
             }
         }
 
-        // Step 4: GitHub token
-        $this->configureGitHubToken();
+        // Step 4: Configure secrets (Claude OAuth + GitHub token)
+        $this->configureSecrets();
 
         // Step 5: Docker sandbox
         $this->offerDockerSetup();
@@ -280,20 +280,76 @@ class InstallCommand extends Command
     }
 
     /**
-     * Prompt for GitHub token and create settings.local.json.
+     * Configure secrets: Claude OAuth token and optional GitHub token.
      */
-    protected function configureGitHubToken(): void
+    protected function configureSecrets(): void
     {
         if (! $this->input->isInteractive()) {
             return;
         }
 
         $settingsPath = base_path('.claude/settings.local.json');
+        $settings = $this->files->exists($settingsPath)
+            ? json_decode($this->files->get($settingsPath), true) ?? []
+            : [];
 
-        if ($this->files->exists($settingsPath)) {
+        $env = $settings['env'] ?? [];
+
+        // Claude OAuth token via setup-token
+        if (! isset($env['CLAUDE_CODE_OAUTH_TOKEN'])) {
+            $this->configureClaudeToken($env);
+        }
+
+        // GitHub token
+        if (! isset($env['GITHUB_TOKEN'])) {
+            $this->configureGitHubToken($env);
+        }
+
+        if (! empty($env)) {
+            $settings['env'] = $env;
+            $this->writeSettings($settingsPath, $settings);
+        }
+    }
+
+    /**
+     * Run claude setup-token and capture the OAuth token.
+     *
+     * @param  array<string, string>  $env
+     */
+    protected function configureClaudeToken(array &$env): void
+    {
+        $this->line('Generating Claude OAuth token via <comment>claude setup-token</comment>...');
+
+        $process = new Process(['claude', 'setup-token']);
+        $process->setTimeout(60);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            $this->warn('Could not generate Claude token. Run "claude setup-token" manually later.');
+            $this->warn('The Docker sandbox requires authentication to install plugins.');
+
             return;
         }
 
+        $token = trim($process->getOutput());
+
+        if (empty($token)) {
+            $this->warn('No token returned from claude setup-token.');
+
+            return;
+        }
+
+        $env['CLAUDE_CODE_OAUTH_TOKEN'] = $token;
+        $this->info('Claude OAuth token configured.');
+    }
+
+    /**
+     * Prompt for optional GitHub token.
+     *
+     * @param  array<string, string>  $env
+     */
+    protected function configureGitHubToken(array &$env): void
+    {
         $wantsToken = confirm(
             label: 'Do you have a GitHub token to configure? (enables gh CLI access for Claude)',
             default: false,
@@ -308,27 +364,29 @@ class InstallCommand extends Command
             required: true,
         );
 
-        if (empty($token)) {
-            return;
+        if (! empty($token)) {
+            $env['GITHUB_TOKEN'] = $token;
+            $this->info('GitHub token configured.');
         }
+    }
 
-        $claudeDir = base_path('.claude');
-        if (! $this->files->isDirectory($claudeDir)) {
-            $this->files->makeDirectory($claudeDir, 0755, true);
+    /**
+     * Write settings to .claude/settings.local.json.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    protected function writeSettings(string $path, array $settings): void
+    {
+        $dir = dirname($path);
+
+        if (! $this->files->isDirectory($dir)) {
+            $this->files->makeDirectory($dir, 0755, true);
         }
-
-        $settings = [
-            'env' => [
-                'GITHUB_TOKEN' => $token,
-            ],
-        ];
 
         $this->files->put(
-            $settingsPath,
+            $path,
             json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
         );
-
-        $this->info('Created '.$settingsPath.' with GitHub token');
 
         $this->addToGitignore();
     }
