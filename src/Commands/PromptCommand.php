@@ -19,7 +19,7 @@ class PromptCommand extends Command
     {
         $prompt = $this->argument('prompt');
 
-        $process = $sandbox->promptProcess($prompt);
+        $process = $sandbox->prompt($prompt);
 
         $this->displayCommand($process);
 

@@ -60,6 +60,8 @@ trait ProcessesSkills
         $this->newLine();
         $this->line('To customize, publish the config and edit the <comment>feedback_loops</comment> array:');
         $this->line('  <comment>php artisan vendor:publish --tag=turbo-config</comment>');
+        $this->line('Then re-run <comment>turbo:skills</comment> to apply changes.');
+        $this->newLine();
     }
 
     /**

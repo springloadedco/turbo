@@ -32,6 +32,14 @@ class DockerBuildCommand extends Command
         if ($process->isSuccessful()) {
             $this->info('Sandbox image built successfully.');
 
+            $sandbox->prompt(
+                'plugin marketplace add obra/superpowers-marketplace'
+            )->run(fn($type, $buffer) => $this->output->write($buffer));
+
+            $sandbox->prompt(
+                'plugin install superpowers@superpowers-marketplace'
+            )->run(fn($type, $buffer) => $this->output->write($buffer));
+
             return self::SUCCESS;
         }
 
