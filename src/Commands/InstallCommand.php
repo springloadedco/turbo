@@ -5,6 +5,7 @@ namespace Springloaded\Turbo\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use Springloaded\Turbo\Commands\Concerns\ProcessesSkills;
+use Springloaded\Turbo\Services\DockerSandbox;
 use Springloaded\Turbo\Services\FeedbackLoopDetector;
 use Springloaded\Turbo\Services\SkillsService;
 use Symfony\Component\Process\Process;
@@ -429,8 +430,42 @@ class InstallCommand extends Command
             default: false,
         );
 
-        if ($wantsDocker) {
-            $this->call('turbo:build');
+        if (! $wantsDocker) {
+            return;
         }
+
+        $exitCode = $this->call('turbo:build');
+
+        if ($exitCode !== self::SUCCESS) {
+            return;
+        }
+
+        $this->installSandboxPlugins();
+    }
+
+    /**
+     * Install superpowers plugins into the sandbox.
+     */
+    protected function installSandboxPlugins(): void
+    {
+        $sandbox = app(DockerSandbox::class);
+
+        $this->info('Installing sandbox plugins...');
+
+        $result = $sandbox->promptProcess(
+            'plugin marketplace add obra/superpowers-marketplace'
+        );
+        $result->run(fn ($type, $buffer) => $this->output->write($buffer));
+
+        if (! $result->isSuccessful()) {
+            $this->warn('Failed to install marketplace plugin. You may need to authenticate first.');
+            $this->line('Run <comment>turbo:claude</comment> and use <comment>/login</comment> to authenticate.');
+
+            return;
+        }
+
+        $sandbox->promptProcess(
+            'plugin install superpowers@superpowers-marketplace'
+        )->run(fn ($type, $buffer) => $this->output->write($buffer));
     }
 }
