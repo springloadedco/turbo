@@ -34,11 +34,11 @@ class DockerBuildCommand extends Command
 
             $sandbox->prompt(
                 'plugin marketplace add obra/superpowers-marketplace'
-            )->run(fn($type, $buffer) => $this->output->write($buffer));
+            )->run(fn ($type, $buffer) => $this->output->write($buffer));
 
             $sandbox->prompt(
                 'plugin install superpowers@superpowers-marketplace'
-            )->run(fn($type, $buffer) => $this->output->write($buffer));
+            )->run(fn ($type, $buffer) => $this->output->write($buffer));
 
             return self::SUCCESS;
         }
