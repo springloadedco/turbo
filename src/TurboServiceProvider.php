@@ -32,5 +32,4 @@ class TurboServiceProvider extends PackageServiceProvider
                 SkillsCommand::class,
             ]);
     }
-
 }
