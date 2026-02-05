@@ -77,3 +77,25 @@ it('returns default feedback loops', function () {
         'npm run test',
     ]);
 });
+
+it('returns available skill names from package', function () {
+    $service = app(SkillsService::class);
+
+    $skills = $service->getAvailableSkills();
+
+    expect($skills)->toBeArray();
+    expect($skills)->toContain('laravel-controllers');
+    expect($skills)->toContain('github-issue');
+    expect($skills)->not->toContain('.'); // no dots
+});
+
+it('returns agent choices with labels and values', function () {
+    $service = app(SkillsService::class);
+
+    $agents = $service->getAgentChoices();
+
+    expect($agents)->toBeArray();
+    expect($agents)->toHaveKey('claude-code');
+    expect($agents)->toHaveKey('cursor');
+    expect($agents)->toHaveKey('codex');
+});

@@ -21,6 +21,87 @@ class DockerSandbox
     }
 
     /**
+     * Get the sandbox name used to identify this sandbox instance.
+     */
+    public function sandboxName(): string
+    {
+        return "claude-{$this->image}";
+    }
+
+    /**
+     * Check if a sandbox with this name already exists.
+     */
+    public function sandboxExists(): bool
+    {
+        $process = new Process(['docker', 'sandbox', 'ls', '--json']);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            return false;
+        }
+
+        return collect(json_decode($process->getOutput(), true)['vms'] ?? [])
+            ->pluck('name')
+            ->contains($this->sandboxName());
+    }
+
+    /**
+     * Create a process to build the sandbox image from the Dockerfile.
+     */
+    public function buildProcess(): Process
+    {
+        return $this->process([
+            'docker', 'build',
+            '--progress=quiet',
+            '-t', $this->image,
+            '-f', $this->dockerfile,
+            dirname($this->dockerfile),
+        ]);
+    }
+
+    /**
+     * Create a new sandbox from the local image template (interactive).
+     */
+    public function createSandbox(): Process
+    {
+        return $this->ttyProcess([
+            'docker', 'sandbox', 'create',
+            '--load-local-template',
+            '-t', $this->image,
+            '--name', $this->sandboxName(),
+            'claude',
+            $this->workspace,
+        ]);
+    }
+
+    /**
+     * Run an existing sandbox (interactive).
+     */
+    public function runSandbox(): Process
+    {
+        return $this->ttyProcess([
+            'docker', 'sandbox', 'run',
+            $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Run a prompt in the sandbox (non-interactive, streamable output).
+     *
+     * Creates a new sandbox if one doesn't exist.
+     *
+     * @see https://docs.docker.com/ai/sandboxes/claude-code/#pass-a-prompt-directly
+     */
+    public function prompt(string $prompt): Process
+    {
+        return $this->ptyProcess(
+            $this->sandboxExists()
+                ? $this->promptCommandForExisting($prompt)
+                : $this->promptCommandForNew($prompt)
+        );
+    }
+
+    /**
      * Get the path to the Dockerfile in the package.
      */
     protected function getPackageDockerfilePath(): string
@@ -29,38 +110,52 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to build the sandbox image from the Dockerfile.
+     * Command to run a prompt in an existing sandbox.
      */
-    public function buildProcess(): Process
+    protected function promptCommandForExisting(string $prompt): array
     {
-        $process = new Process([
-            'docker', 'build',
-            '--progress=plain',
-            '-t', $this->image,
-            '-f', $this->dockerfile,
-            dirname($this->dockerfile),
-        ]);
+        return [
+            'docker', 'sandbox', 'run',
+            $this->sandboxName(),
+            '--',
+            ...explode(' ', $prompt),
+        ];
+    }
 
+    /**
+     * Command to create a new sandbox and run a prompt.
+     */
+    protected function promptCommandForNew(string $prompt): array
+    {
+        return [
+            'docker', 'sandbox', 'run',
+            '--load-local-template',
+            '-t', $this->image,
+            '--name', $this->sandboxName(),
+            'claude',
+            $this->workspace,
+            '--',
+            '-p', $prompt,
+        ];
+    }
+
+    /**
+     * Create a process with no timeout.
+     */
+    protected function process(array $command): Process
+    {
+        $process = new Process($command);
         $process->setTimeout(null);
 
         return $process;
     }
 
     /**
-     * Create a process to run sandbox in interactive TTY mode.
+     * Create a process with TTY for interactive sessions.
      */
-    public function interactiveProcess(): Process
+    protected function ttyProcess(array $command): Process
     {
-
-        $process = new Process([
-            'docker', 'sandbox', 'run',
-            '--template', $this->image,
-            '--workspace', $this->workspace,
-            'claude',
-            '--dangerously-skip-permissions',
-        ]);
-
-        $process->setTimeout(null);
+        $process = $this->process($command);
 
         if (Process::isTtySupported()) {
             $process->setTty(true);
@@ -70,19 +165,11 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to run sandbox with a prompt (non-interactive).
+     * Create a process with PTY for streaming output.
      */
-    public function promptProcess(string $prompt): Process
+    protected function ptyProcess(array $command): Process
     {
-        $process = new Process([
-            'docker', 'sandbox', 'run',
-            '--template', $this->image,
-            '--workspace', $this->workspace,
-            'claude',
-            '-p', $prompt,
-        ]);
-
-        $process->setTimeout(null);
+        $process = $this->process($command);
 
         if (Process::isTtySupported()) {
             $process->setPty(true);

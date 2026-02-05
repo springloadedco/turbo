@@ -19,6 +19,42 @@ class SkillsService
     }
 
     /**
+     * Get available skill names from the package's .ai/skills directory.
+     *
+     * @return array<string>
+     */
+    public function getAvailableSkills(): array
+    {
+        $skillsPath = $this->getPackagePath().'/.ai/skills';
+
+        if (! $this->files->isDirectory($skillsPath)) {
+            return [];
+        }
+
+        return collect($this->files->directories($skillsPath))
+            ->map(fn ($path) => basename($path))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get agent choices for skill installation.
+     *
+     * Returns an associative array of agent-id => label for use in multiselect prompts.
+     * The keys match the agent identifiers expected by `npx skills add --agent`.
+     *
+     * @return array<string, string>
+     */
+    public function getAgentChoices(): array
+    {
+        return [
+            'claude-code' => 'Claude Code',
+            'cursor' => 'Cursor',
+            'codex' => 'Codex',
+        ];
+    }
+
+    /**
      * Get all installed skill paths across supported agent directories.
      *
      * @return array<string>
