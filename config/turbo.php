@@ -13,13 +13,8 @@ return [
     |
     */
     'feedback_loops' => [
-        'composer lint',
-        'composer test',
-        'composer analyse',
-        'npm run lint',
-        'npm run types',
-        'npm run build',
-        'npm run test',
+        // Populated by turbo:install based on your project's scripts.
+        // Run turbo:install or edit manually.
     ],
 
     'docker' => [

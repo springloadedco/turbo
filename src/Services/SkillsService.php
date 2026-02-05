@@ -122,7 +122,9 @@ class SkillsService
      */
     public function getFeedbackLoops(): array
     {
-        return config('turbo.feedback_loops', $this->getDefaultFeedbackLoops());
+        $configured = config('turbo.feedback_loops', []);
+
+        return ! empty($configured) ? $configured : $this->getDefaultFeedbackLoops();
     }
 
     /**
