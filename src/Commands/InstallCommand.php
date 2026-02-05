@@ -38,6 +38,10 @@ class InstallCommand extends Command
 
     public function handle(): int
     {
+        $this->callSilently('vendor:publish', [
+            '--tag' => 'turbo-config',
+        ]);
+
         if (! $this->checkNpxAvailable()) {
             $this->error('npx is required to install skills. Please install Node.js and npm first.');
             $this->line('See: https://nodejs.org/');

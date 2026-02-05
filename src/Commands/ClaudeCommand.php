@@ -16,10 +16,7 @@ class ClaudeCommand extends Command
 
     public function handle(DockerSandbox $sandbox): int
     {
-        $process = match ($sandbox->sandboxExists()) {
-            true => $sandbox->runSandbox(),
-            false => $sandbox->createSandbox(),
-        };
+        $process = $sandbox->interactiveProcess();
 
         $this->displayCommand($process);
 

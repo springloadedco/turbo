@@ -9,10 +9,18 @@ it('returns the correct dockerfile path', function () {
     expect(file_exists($sandbox->dockerfile))->toBeTrue();
 });
 
-it('returns the correct sandbox name', function () {
+it('uses static default image name', function () {
     $sandbox = app(DockerSandbox::class);
 
-    expect($sandbox->sandboxName())->toBe('claude-turbo');
+    expect($sandbox->image)->toBe('turbo');
+});
+
+it('derives sandbox name from workspace path', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+
+    expect($sandbox->sandboxName())->toBe('turbo-cpbc');
 });
 
 it('creates a build process with correct command', function () {
@@ -30,45 +38,53 @@ it('creates a build process with correct command', function () {
         ->toContain('Dockerfile');
 });
 
-it('creates a sandbox with --name flag', function () {
-    config()->set('turbo.docker.workspace', '/test/workspace');
+it('creates an interactive process for a new sandbox', function () {
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->image = 'turbo';
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
+    $sandbox->shouldReceive('sandboxExists')->andReturn(false);
 
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->createSandbox();
+    $process = $sandbox->interactiveProcess();
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
         ->toContain('docker')
         ->toContain('sandbox')
-        ->toContain('create')
+        ->toContain('run')
         ->toContain('--load-local-template')
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
-        ->toContain('claude-turbo')
+        ->toContain('turbo-cpbc')
         ->toContain('claude')
-        ->toContain('/test/workspace');
+        ->toContain('/Users/dev/Sites/cpbc');
 });
 
-it('runs an existing sandbox by name', function () {
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->runSandbox();
+it('creates an interactive process for an existing sandbox', function () {
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->image = 'turbo';
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
+    $sandbox->shouldReceive('sandboxExists')->andReturn(true);
+
+    $process = $sandbox->interactiveProcess();
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('run')
-        ->toContain('claude-turbo');
+        ->toContain('turbo-cpbc')
+        ->not->toContain('--load-local-template')
+        ->not->toContain('/Users/dev/Sites/cpbc');
 });
 
-it('creates a prompt process that creates a new sandbox when none exists', function () {
+it('creates a prompt process for a new sandbox', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->image = 'turbo';
-    $sandbox->workspace = '/test/workspace';
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('sandboxExists')->andReturn(false);
 
-    $process = $sandbox->prompt('Hello Claude');
+    $process = $sandbox->promptProcess('Hello Claude');
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
@@ -76,31 +92,34 @@ it('creates a prompt process that creates a new sandbox when none exists', funct
         ->toContain('sandbox')
         ->toContain('run')
         ->toContain('--load-local-template')
+        ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
-        ->toContain('claude-turbo')
+        ->toContain('turbo-cpbc')
         ->toContain('claude')
-        ->toContain('/test/workspace')
+        ->toContain('/Users/dev/Sites/cpbc')
         ->toContain('--')
+        ->toContain('-p')
         ->toContain('Hello Claude');
 });
 
-it('creates a prompt process that reuses an existing sandbox', function () {
+it('creates a prompt process for an existing sandbox', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->image = 'turbo';
-    $sandbox->workspace = '/test/workspace';
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
 
-    $process = $sandbox->prompt('Hello Claude');
+    $process = $sandbox->promptProcess('Hello Claude');
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('run')
-        ->toContain('claude-turbo')
+        ->toContain('turbo-cpbc')
         ->toContain('--')
-        ->toContain('Hello')
-        ->toContain('Claude')
-        ->not->toContain('--load-local-template');
+        ->toContain('-p')
+        ->toContain('Hello Claude')
+        ->not->toContain('--load-local-template')
+        ->not->toContain('/Users/dev/Sites/cpbc');
 });

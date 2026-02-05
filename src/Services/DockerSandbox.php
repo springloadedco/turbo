@@ -2,6 +2,7 @@
 
 namespace Springloaded\Turbo\Services;
 
+use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
 class DockerSandbox
@@ -22,10 +23,12 @@ class DockerSandbox
 
     /**
      * Get the sandbox name used to identify this sandbox instance.
+     *
+     * Derived from the workspace path so each project gets its own sandbox.
      */
     public function sandboxName(): string
     {
-        return "claude-{$this->image}";
+        return 'turbo-'.Str::slug(basename($this->workspace));
     }
 
     /**
@@ -60,12 +63,19 @@ class DockerSandbox
     }
 
     /**
-     * Create a new sandbox from the local image template (interactive).
+     * Create a PTY process for an interactive Claude session in the sandbox.
      */
-    public function createSandbox(): Process
+    public function interactiveProcess(): Process
     {
-        return $this->ttyProcess([
-            'docker', 'sandbox', 'create',
+        if ($this->sandboxExists()) {
+            return $this->ptyProcess([
+                'docker', 'sandbox', 'run',
+                $this->sandboxName(),
+            ]);
+        }
+
+        return $this->ptyProcess([
+            'docker', 'sandbox', 'run',
             '--load-local-template',
             '-t', $this->image,
             '--name', $this->sandboxName(),
@@ -75,30 +85,29 @@ class DockerSandbox
     }
 
     /**
-     * Run an existing sandbox (interactive).
+     * Create a PTY process to run a prompt in the sandbox.
      */
-    public function runSandbox(): Process
+    public function promptProcess(string $prompt): Process
     {
-        return $this->ttyProcess([
-            'docker', 'sandbox', 'run',
-            $this->sandboxName(),
-        ]);
-    }
+        if ($this->sandboxExists()) {
+            return $this->ptyProcess([
+                'docker', 'sandbox', 'run',
+                $this->sandboxName(),
+                '--',
+                '-p', $prompt,
+            ]);
+        }
 
-    /**
-     * Run a prompt in the sandbox (non-interactive, streamable output).
-     *
-     * Creates a new sandbox if one doesn't exist.
-     *
-     * @see https://docs.docker.com/ai/sandboxes/claude-code/#pass-a-prompt-directly
-     */
-    public function prompt(string $prompt): Process
-    {
-        return $this->ptyProcess(
-            $this->sandboxExists()
-                ? $this->promptCommandForExisting($prompt)
-                : $this->promptCommandForNew($prompt)
-        );
+        return $this->ptyProcess([
+            'docker', 'sandbox', 'run',
+            '--load-local-template',
+            '-t', $this->image,
+            '--name', $this->sandboxName(),
+            'claude',
+            $this->workspace,
+            '--',
+            '-p', $prompt,
+        ]);
     }
 
     /**
@@ -110,56 +119,12 @@ class DockerSandbox
     }
 
     /**
-     * Command to run a prompt in an existing sandbox.
-     */
-    protected function promptCommandForExisting(string $prompt): array
-    {
-        return [
-            'docker', 'sandbox', 'run',
-            $this->sandboxName(),
-            '--',
-            ...explode(' ', $prompt),
-        ];
-    }
-
-    /**
-     * Command to create a new sandbox and run a prompt.
-     */
-    protected function promptCommandForNew(string $prompt): array
-    {
-        return [
-            'docker', 'sandbox', 'run',
-            '--load-local-template',
-            '-t', $this->image,
-            '--name', $this->sandboxName(),
-            'claude',
-            $this->workspace,
-            '--',
-            '-p', $prompt,
-        ];
-    }
-
-    /**
      * Create a process with no timeout.
      */
     protected function process(array $command): Process
     {
         $process = new Process($command);
         $process->setTimeout(null);
-
-        return $process;
-    }
-
-    /**
-     * Create a process with TTY for interactive sessions.
-     */
-    protected function ttyProcess(array $command): Process
-    {
-        $process = $this->process($command);
-
-        if (Process::isTtySupported()) {
-            $process->setTty(true);
-        }
 
         return $process;
     }
