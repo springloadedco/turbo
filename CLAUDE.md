@@ -17,6 +17,17 @@ This is a Laravel package that provides AI guidelines, skills, and tools for Spr
 - `composer analyse` - Static analysis (PHPStan)
 - `composer format` - Code formatting (Pint)
 
+### Artisan Commands
+
+This package registers artisan commands in `src/Commands/`. When developing this package, run them via Orchestra Testbench: `vendor/bin/testbench <command>`. In a consumer Laravel project, they are called with `php artisan <command>`.
+
+- `turbo` - Base command
+- `turbo:install` - Install/configure Turbo in a project
+- `turbo:build` - Build the Docker sandbox template
+- `turbo:claude` - Launch interactive Claude session in a sandbox
+- `turbo:prompt {prompt}` - Send a one-shot prompt to Claude in a sandbox
+- `turbo:skills` - Manage AI skills
+
 ### Package Structure
 
 - `src/` - Package source code
