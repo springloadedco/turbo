@@ -32,6 +32,93 @@ The `.ai/skills/` directory contains Laravel development patterns that get publi
 
 Uses Pest with Orchestra Testbench. Run `composer test`.
 
+### Docker Sandbox Commands Reference
+
+#### Main Commands
+
+**`docker sandbox create [OPTIONS] AGENT WORKSPACE`**
+- Create a sandbox with access to a host workspace for an agent
+- Available agents: `claude`, `cagent`, `codex`, `copilot`, `gemini`, `kiro`
+- Workspace path is required and exposed inside sandbox at same path as host
+- Options:
+  - `--name string` - Custom sandbox name (default: `<agent>-<workdir>`)
+  - `-t, --template string` - Custom container image for sandbox
+  - `--load-local-template` - Load locally built template image
+  - `-q, --quiet` - Suppress verbose output
+  - `-D, --debug` - Enable debug logging
+
+**`docker sandbox run SANDBOX [-- AGENT_ARGS...] | AGENT WORKSPACE [-- AGENT_ARGS...]`**
+- Run an agent in a sandbox; creates sandbox if it doesn't exist
+- Pass agent arguments after `--` separator
+- Examples:
+  - `docker sandbox run claude .` - Create/run sandbox with claude in current dir
+  - `docker sandbox run existing-sandbox` - Run existing sandbox
+  - `docker sandbox run claude . -- -p "What version are you running?"` - Run with agent args
+- Options: same as `create` command
+
+**`docker sandbox exec [OPTIONS] SANDBOX COMMAND [ARG...]`**
+- Execute a command in an existing sandbox
+- Options:
+  - `-i, --interactive` - Keep STDIN open
+  - `-t, --tty` - Allocate a pseudo-TTY
+  - `-d, --detach` - Run in background
+  - `-e, --env stringArray` - Set environment variables
+  - `--env-file stringArray` - Read environment variables from file
+  - `-u, --user string` - Username or UID
+  - `-w, --workdir string` - Working directory inside container
+  - `--privileged` - Give extended privileges
+
+**`docker sandbox ls [OPTIONS]`**
+- List all VMs and their sandboxes
+- Aliases: `list`
+- Options:
+  - `-q, --quiet` - Only display VM names
+  - `--json` - Output in JSON format
+  - `--no-trunc` - Don't truncate output
+
+**`docker sandbox rm SANDBOX [SANDBOX...]`**
+- Remove one or more sandboxes and all associated resources
+- Aliases: `remove`
+
+**`docker sandbox stop SANDBOX [SANDBOX...]`**
+- Stop one or more sandboxes without removing them
+- Sandboxes can be restarted later
+
+**`docker sandbox reset [OPTIONS]`**
+- Reset all VM sandboxes and permanently delete all VM data
+- ⚠️ WARNING: Destructive operation - stops all VMs, deletes state, clears registries
+- Options:
+  - `-f, --force` - Skip confirmation prompt
+
+**`docker sandbox save SANDBOX TAG [OPTIONS]`**
+- Save a snapshot of sandbox as a template
+- Examples:
+  - `docker sandbox save my-sandbox myimage:v1.0` - Load into host Docker
+  - `docker sandbox save my-sandbox myimage:v1.0 --output /tmp/myimage.tar` - Save to file
+- Options:
+  - `-o, --output string` - Save to tar file instead of loading into Docker
+
+**`docker sandbox network log [OPTIONS]`**
+- Show network logs
+- Options:
+  - `--json` - Output in JSON format
+  - `--limit int` - Maximum number of log entries to show
+  - `-q, --quiet` - Only display log entries
+
+**`docker sandbox network proxy <sandbox> [OPTIONS]`**
+- Manage proxy configuration for a sandbox
+- Options:
+  - `--policy allow|deny` - Set default policy
+  - `--allow-host string` - Permit access to domain/IP (can be specified multiple times)
+  - `--allow-cidr string` - Remove IP range from block/bypass lists (can be specified multiple times)
+  - `--block-host string` - Block access to domain/IP (can be specified multiple times)
+  - `--block-cidr string` - Block access to IP range in CIDR notation (can be specified multiple times)
+  - `--bypass-host string` - Bypass proxy for domain/IP (can be specified multiple times)
+  - `--bypass-cidr string` - Bypass proxy for IP range in CIDR notation (can be specified multiple times)
+
+**`docker sandbox version`**
+- Show sandbox version information
+
 ### Docker Sandbox Patterns
 
 #### Symfony Process: TTY vs PTY
