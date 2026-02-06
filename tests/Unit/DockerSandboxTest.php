@@ -20,7 +20,7 @@ it('derives sandbox name from workspace path', function () {
 
     $sandbox = app(DockerSandbox::class);
 
-    expect($sandbox->sandboxName())->toBe('turbo-cpbc');
+    expect($sandbox->sandboxName())->toBe('claude-cpbc');
 });
 
 it('creates a build process with correct command', function () {
@@ -55,7 +55,7 @@ it('creates an interactive process for a new sandbox', function () {
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
-        ->toContain('turbo-cpbc')
+        ->toContain('claude-cpbc')
         ->toContain('claude')
         ->toContain('/Users/dev/Sites/cpbc');
 });
@@ -73,7 +73,7 @@ it('creates an interactive process for an existing sandbox', function () {
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('run')
-        ->toContain('turbo-cpbc')
+        ->toContain('claude-cpbc')
         ->not->toContain('--load-local-template')
         ->not->toContain('/Users/dev/Sites/cpbc');
 });
@@ -95,7 +95,7 @@ it('creates a prompt process for a new sandbox', function () {
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
-        ->toContain('turbo-cpbc')
+        ->toContain('claude-cpbc')
         ->toContain('claude')
         ->toContain('/Users/dev/Sites/cpbc')
         ->toContain('--')
@@ -116,7 +116,7 @@ it('creates a prompt process for an existing sandbox', function () {
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('run')
-        ->toContain('turbo-cpbc')
+        ->toContain('claude-cpbc')
         ->toContain('--')
         ->toContain('-p')
         ->toContain('Hello Claude')

@@ -5,6 +5,7 @@ namespace Springloaded\Turbo\Commands;
 use Illuminate\Console\Command;
 use Springloaded\Turbo\Commands\Concerns\DisplaysCommands;
 use Springloaded\Turbo\Services\DockerSandbox;
+use Symfony\Component\Console\Helper\ProgressIndicator;
 
 class DockerBuildCommand extends Command
 {
@@ -23,10 +24,17 @@ class DockerBuildCommand extends Command
 
         $this->displayCommand($process);
 
-        $process->run(function ($type, $buffer) {
-            $this->output->write($buffer);
-        });
+        $process->start();
 
+        $progress = new ProgressIndicator($this->output);
+        $progress->start('Building...');
+
+        while ($process->isRunning()) {
+            $progress->advance();
+            usleep(100000);
+        }
+
+        $progress->finish($process->isSuccessful() ? 'Done' : 'Failed');
         $this->newLine();
 
         if ($process->isSuccessful()) {
@@ -36,6 +44,7 @@ class DockerBuildCommand extends Command
         }
 
         $this->error('Failed to build sandbox image.');
+        $this->line($process->getErrorOutput());
 
         return self::FAILURE;
     }

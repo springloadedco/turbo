@@ -320,28 +320,65 @@ class InstallCommand extends Command
     protected function configureClaudeToken(array &$env): void
     {
         $this->line('Generating Claude OAuth token via <comment>claude setup-token</comment>...');
+        $this->line('A browser window will open for authentication.');
 
         $process = new Process(['claude', 'setup-token']);
-        $process->setTimeout(60);
+        $process->setTimeout(120);
+
+        if (Process::isPtySupported()) {
+            $process->setPty(true);
+        }
+
         $process->run();
 
-        if (! $process->isSuccessful()) {
-            $this->warn('Could not generate Claude token. Run "claude setup-token" manually later.');
-            $this->warn('The Docker sandbox requires authentication to install plugins.');
+        if ($process->isSuccessful()) {
+            $token = $this->extractToken($process->getOutput());
 
-            return;
+            if ($token) {
+                $env['CLAUDE_CODE_OAUTH_TOKEN'] = $token;
+                $this->info('Claude OAuth token configured.');
+
+                return;
+            }
         }
 
-        $token = trim($process->getOutput());
+        // Fallback: ask the user to paste the token manually
+        $this->warn('Could not automatically capture the token.');
+        $this->line('Run <comment>claude setup-token</comment> in another terminal if needed.');
 
-        if (empty($token)) {
-            $this->warn('No token returned from claude setup-token.');
+        $token = text(
+            label: 'Paste the token from claude setup-token (or leave empty to skip)',
+            required: false,
+        );
 
-            return;
+        if (! empty($token)) {
+            $env['CLAUDE_CODE_OAUTH_TOKEN'] = trim($token);
+            $this->info('Claude OAuth token configured.');
+        } else {
+            $this->warn('Skipped. Run "claude setup-token" later and add the token to .claude/settings.local.json');
+        }
+    }
+
+    /**
+     * Extract a Claude OAuth token from process output.
+     */
+    protected function extractToken(string $output): ?string
+    {
+        // Strip ANSI escape sequences from PTY output
+        $cleaned = preg_replace('/\x1b\[[0-9;]*[a-zA-Z]/', '', $output);
+
+        // Look for token pattern (sk-ant-oat01-...)
+        if (preg_match('/(sk-ant-oat01-\S+)/', $cleaned, $matches)) {
+            return trim($matches[1]);
         }
 
-        $env['CLAUDE_CODE_OAUTH_TOKEN'] = $token;
-        $this->info('Claude OAuth token configured.');
+        // Fallback: if the entire output is a token
+        $trimmed = trim($cleaned);
+        if (! empty($trimmed) && str_starts_with($trimmed, 'sk-ant-')) {
+            return $trimmed;
+        }
+
+        return null;
     }
 
     /**
@@ -452,20 +489,25 @@ class InstallCommand extends Command
 
         $this->info('Installing sandbox plugins...');
 
-        $result = $sandbox->promptProcess(
-            'plugin marketplace add obra/superpowers-marketplace'
-        );
-        $result->run(fn ($type, $buffer) => $this->output->write($buffer));
+        $outputCallback = fn ($type, $buffer) => $this->output->write($buffer);
 
-        if (! $result->isSuccessful()) {
+        $result = $sandbox->runCommand(
+            ['plugin', 'marketplace', 'add', 'obra/superpowers-marketplace'],
+            $outputCallback,
+        );
+
+        $resultOutput = $result->getErrorOutput().$result->getOutput();
+
+        if (! $result->isSuccessful() && ! str_contains($resultOutput, 'already installed')) {
             $this->warn('Failed to install marketplace plugin. You may need to authenticate first.');
             $this->line('Run <comment>turbo:claude</comment> and use <comment>/login</comment> to authenticate.');
 
             return;
         }
 
-        $sandbox->promptProcess(
-            'plugin install superpowers@superpowers-marketplace'
-        )->run(fn ($type, $buffer) => $this->output->write($buffer));
+        $sandbox->runCommand(
+            ['plugin', 'install', 'superpowers@superpowers-marketplace'],
+            $outputCallback,
+        );
     }
 }
