@@ -481,7 +481,7 @@ class InstallCommand extends Command
         }
 
         // Step 3: Authenticate Claude inside the sandbox
-        //$this->authenticateSandbox($sandbox);
+        // $this->authenticateSandbox($sandbox);
 
         // Step 4: Install plugins
         $this->installSandboxPlugins($sandbox);

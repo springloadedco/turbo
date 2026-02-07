@@ -104,7 +104,6 @@ it('creates a build process with correct command', function () {
         ->toContain('Dockerfile');
 });
 
-
 it('creates an exec process with correct command', function () {
     config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
 
