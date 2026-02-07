@@ -32,5 +32,5 @@ settings.local.json
 phpunit.xml
 phpstan.neon
 testbench.yaml
-/docs
+/docs/plans
 /coverage

@@ -51,6 +51,47 @@ class DockerSandbox
     }
 
     /**
+     * Create a process to create the sandbox from the built image.
+     */
+    public function createProcess(): Process
+    {
+        return $this->process([
+            'docker', 'sandbox', 'create',
+            '--load-local-template',
+            '-t', $this->image,
+            '--name', $this->sandboxName(),
+            'claude',
+            $this->workspace,
+        ]);
+    }
+
+    /**
+     * Create a process to remove the sandbox.
+     */
+    public function removeProcess(): Process
+    {
+        return $this->process([
+            'docker', 'sandbox', 'rm',
+            $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Ensure the sandbox exists, creating it if necessary.
+     */
+    public function ensureSandboxExists(): bool
+    {
+        if ($this->sandboxExists()) {
+            return true;
+        }
+
+        $process = $this->createProcess();
+        $process->run();
+
+        return $process->isSuccessful();
+    }
+
+    /**
      * Create a process to build the sandbox image from the Dockerfile.
      */
     public function buildProcess(): Process
@@ -65,25 +106,37 @@ class DockerSandbox
     }
 
     /**
-     * Create a TTY process for an interactive Claude session in the sandbox.
+     * Execute a command inside the sandbox via docker sandbox exec.
      */
-    public function interactiveProcess(): Process
+    public function execProcess(array $command): Process
     {
-        if ($this->sandboxExists()) {
-            return $this->ttyProcess([
-                'docker', 'sandbox', 'run',
-                $this->sandboxName(),
-            ]);
+        return $this->process(array_merge([
+            'docker', 'sandbox', 'exec',
+            $this->sandboxName(),
+            '--',
+        ], $command));
+    }
+
+    /**
+     * Create a TTY process for an interactive Claude session in the sandbox.
+     *
+     * @param  array<string>  $claudeArgs  Optional arguments to pass to Claude CLI
+     */
+    public function interactiveProcess(array $claudeArgs = []): Process
+    {
+        $this->ensureSandboxExists();
+
+        $command = [
+            'docker', 'sandbox', 'run',
+            $this->sandboxName(),
+        ];
+
+        if (! empty($claudeArgs)) {
+            $command[] = '--';
+            $command = array_merge($command, $claudeArgs);
         }
 
-        return $this->ttyProcess([
-            'docker', 'sandbox', 'run',
-            '--load-local-template',
-            '-t', $this->image,
-            '--name', $this->sandboxName(),
-            'claude',
-            $this->workspace,
-        ]);
+        return $this->ttyProcess($command);
     }
 
     /**
@@ -91,32 +144,18 @@ class DockerSandbox
      */
     public function promptProcess(string $prompt): Process
     {
-        if ($this->sandboxExists()) {
-            return $this->ptyProcess([
-                'docker', 'sandbox', 'run',
-                $this->sandboxName(),
-                '--',
-                '-p', $prompt,
-            ]);
-        }
+        $this->ensureSandboxExists();
 
         return $this->ptyProcess([
             'docker', 'sandbox', 'run',
-            '--load-local-template',
-            '-t', $this->image,
-            '--name', $this->sandboxName(),
-            'claude',
-            $this->workspace,
+            $this->sandboxName(),
             '--',
             '-p', $prompt,
         ]);
     }
 
     /**
-     * Run a prompt in the sandbox, handling existence detection automatically.
-     *
-     * Tries the existing sandbox first. If it doesn't exist, creates a new one.
-     * This avoids relying on sandboxExists() which may not detect stopped sandboxes.
+     * Run a prompt in the sandbox, creating it if necessary.
      */
     public function runPrompt(string $prompt, ?callable $output = null): Process
     {
@@ -141,23 +180,13 @@ class DockerSandbox
      */
     protected function runInSandbox(array $claudeArgs, ?callable $output = null): Process
     {
-        if ($this->sandboxExists()) {
-            $command = array_merge([
-                'docker', 'sandbox', 'run',
-                $this->sandboxName(),
-                '--',
-            ], $claudeArgs);
-        } else {
-            $command = array_merge([
-                'docker', 'sandbox', 'run',
-                '--load-local-template',
-                '-t', $this->image,
-                '--name', $this->sandboxName(),
-                'claude',
-                $this->workspace,
-                '--',
-            ], $claudeArgs);
-        }
+        $this->ensureSandboxExists();
+
+        $command = array_merge([
+            'docker', 'sandbox', 'run',
+            $this->sandboxName(),
+            '--',
+        ], $claudeArgs);
 
         $process = $this->ptyProcess($command);
         $process->run($output);

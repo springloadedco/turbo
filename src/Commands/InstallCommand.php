@@ -94,7 +94,7 @@ class InstallCommand extends Command
         }
 
         foreach ($selectedSkills['thirdParty'] as $skill) {
-            $this->info("Installing {$skill['name']}...");
+            $this->info("Installing {$skill['name']} skill...");
 
             $exitCode = $this->runNpxSkillsAdd(
                 $skill['source'],
@@ -109,7 +109,7 @@ class InstallCommand extends Command
             }
         }
 
-        // Step 4: Configure secrets (Claude OAuth + GitHub token)
+        // Step 4: Configure secrets (GitHub token)
         $this->configureSecrets();
 
         // Step 5: Docker sandbox
@@ -281,7 +281,10 @@ class InstallCommand extends Command
     }
 
     /**
-     * Configure secrets: Claude OAuth token and optional GitHub token.
+     * Configure secrets: optional GitHub token.
+     *
+     * Claude authentication is handled inside the sandbox via setup-token
+     * during Docker setup, not on the host.
      */
     protected function configureSecrets(): void
     {
@@ -289,104 +292,13 @@ class InstallCommand extends Command
             return;
         }
 
-        $settingsPath = base_path('.claude/settings.local.json');
-        $settings = $this->files->exists($settingsPath)
-            ? json_decode($this->files->get($settingsPath), true) ?? []
-            : [];
-
-        $env = $settings['env'] ?? [];
-
-        // Claude OAuth token via setup-token
-        if (! isset($env['CLAUDE_CODE_OAUTH_TOKEN'])) {
-            $this->configureClaudeToken($env);
-        }
-
-        // GitHub token
-        if (! isset($env['GITHUB_TOKEN'])) {
-            $this->configureGitHubToken($env);
-        }
-
-        if (! empty($env)) {
-            $settings['env'] = $env;
-            $this->writeSettings($settingsPath, $settings);
-        }
+        $this->configureGitHubToken();
     }
 
     /**
-     * Run claude setup-token and capture the OAuth token.
-     *
-     * @param  array<string, string>  $env
+     * Prompt for optional GitHub token and write to settings.
      */
-    protected function configureClaudeToken(array &$env): void
-    {
-        $this->line('Generating Claude OAuth token via <comment>claude setup-token</comment>...');
-        $this->line('A browser window will open for authentication.');
-
-        $process = new Process(['claude', 'setup-token']);
-        $process->setTimeout(120);
-
-        if (Process::isPtySupported()) {
-            $process->setPty(true);
-        }
-
-        $process->run();
-
-        if ($process->isSuccessful()) {
-            $token = $this->extractToken($process->getOutput());
-
-            if ($token) {
-                $env['CLAUDE_CODE_OAUTH_TOKEN'] = $token;
-                $this->info('Claude OAuth token configured.');
-
-                return;
-            }
-        }
-
-        // Fallback: ask the user to paste the token manually
-        $this->warn('Could not automatically capture the token.');
-        $this->line('Run <comment>claude setup-token</comment> in another terminal if needed.');
-
-        $token = text(
-            label: 'Paste the token from claude setup-token (or leave empty to skip)',
-            required: false,
-        );
-
-        if (! empty($token)) {
-            $env['CLAUDE_CODE_OAUTH_TOKEN'] = trim($token);
-            $this->info('Claude OAuth token configured.');
-        } else {
-            $this->warn('Skipped. Run "claude setup-token" later and add the token to .claude/settings.local.json');
-        }
-    }
-
-    /**
-     * Extract a Claude OAuth token from process output.
-     */
-    protected function extractToken(string $output): ?string
-    {
-        // Strip ANSI escape sequences from PTY output
-        $cleaned = preg_replace('/\x1b\[[0-9;]*[a-zA-Z]/', '', $output);
-
-        // Look for token pattern (sk-ant-oat01-...)
-        if (preg_match('/(sk-ant-oat01-\S+)/', $cleaned, $matches)) {
-            return trim($matches[1]);
-        }
-
-        // Fallback: if the entire output is a token
-        $trimmed = trim($cleaned);
-        if (! empty($trimmed) && str_starts_with($trimmed, 'sk-ant-')) {
-            return $trimmed;
-        }
-
-        return null;
-    }
-
-    /**
-     * Prompt for optional GitHub token.
-     *
-     * @param  array<string, string>  $env
-     */
-    protected function configureGitHubToken(array &$env): void
+    protected function configureGitHubToken(): void
     {
         $wantsToken = confirm(
             label: 'Do you have a GitHub token to configure? (enables gh CLI access for Claude)',
@@ -402,10 +314,21 @@ class InstallCommand extends Command
             required: true,
         );
 
-        if (! empty($token)) {
-            $env['GITHUB_TOKEN'] = $token;
-            $this->info('GitHub token configured.');
+        if (empty($token)) {
+            return;
         }
+
+        $settingsPath = base_path('.claude/settings.local.json');
+        $settings = $this->files->exists($settingsPath)
+            ? json_decode($this->files->get($settingsPath), true) ?? []
+            : [];
+
+        $settings['env'] = array_merge($settings['env'] ?? [], [
+            'GITHUB_TOKEN' => $token,
+        ]);
+
+        $this->writeSettings($settingsPath, $settings);
+        $this->info('GitHub token configured.');
     }
 
     /**
@@ -454,6 +377,46 @@ class InstallCommand extends Command
     }
 
     /**
+     * Prompt for the Docker image name and write it to the config file.
+     */
+    protected function configureDockerImage(): void
+    {
+        $default = 'turbo/'.basename(base_path());
+
+        $image = text(
+            label: 'Docker image name',
+            default: $default,
+            required: true,
+        );
+
+        $this->writeDockerImageToConfig($image);
+
+        config(['turbo.docker.image' => $image]);
+    }
+
+    /**
+     * Write the Docker image name into the published config file.
+     */
+    protected function writeDockerImageToConfig(string $image): void
+    {
+        $configPath = config_path('turbo.php');
+
+        if (! $this->files->exists($configPath)) {
+            return;
+        }
+
+        $content = $this->files->get($configPath);
+
+        $content = preg_replace(
+            "/'image'\s*=>\s*env\([^)]+\)/",
+            "'image' => env('TURBO_DOCKER_IMAGE', '{$image}')",
+            $content
+        );
+
+        $this->files->put($configPath, $content);
+    }
+
+    /**
      * Ask if the user wants to set up Docker sandbox.
      */
     protected function offerDockerSetup(): void
@@ -471,22 +434,83 @@ class InstallCommand extends Command
             return;
         }
 
+        // Configure image name
+        $this->configureDockerImage();
+
+        // Step 1: Build the image
         $exitCode = $this->call('turbo:build');
 
         if ($exitCode !== self::SUCCESS) {
             return;
         }
 
-        $this->installSandboxPlugins();
+        // Step 2: Create the sandbox
+        $sandbox = app(DockerSandbox::class);
+
+        if ($sandbox->sandboxExists()) {
+            $rebuild = confirm(
+                label: "Sandbox '{$sandbox->sandboxName()}' already exists. Rebuild it?",
+                default: false,
+            );
+
+            if (! $rebuild) {
+                return;
+            }
+
+            $this->info('Removing existing sandbox...');
+            $removeProcess = $sandbox->removeProcess();
+            $removeProcess->run();
+
+            if (! $removeProcess->isSuccessful()) {
+                $this->error('Failed to remove sandbox.');
+                $this->line($removeProcess->getErrorOutput());
+
+                return;
+            }
+        }
+
+        $this->info('Creating sandbox...');
+        $createProcess = $sandbox->createProcess();
+        $createProcess->run();
+
+        if (! $createProcess->isSuccessful()) {
+            $this->error('Failed to create sandbox.');
+            $this->line($createProcess->getErrorOutput());
+
+            return;
+        }
+
+        // Step 3: Authenticate Claude inside the sandbox
+        //$this->authenticateSandbox($sandbox);
+
+        // Step 4: Install plugins
+        $this->installSandboxPlugins($sandbox);
+    }
+
+    /**
+     * Launch an interactive Claude session for the user to authenticate.
+     *
+     * The user runs /login inside the session, then exits.
+     * After the session closes, the sandbox is authenticated.
+     */
+    protected function authenticateSandbox(DockerSandbox $sandbox): void
+    {
+        $this->newLine();
+        $this->info('Launching Claude session for authentication...');
+        $this->newLine();
+
+        $prompt = 'Welcome! To complete the Turbo installation, please authenticate your Claude account. '
+            .'Run /login to begin authentication, complete the browser flow, then run /exit when you\'re done.';
+
+        $process = $sandbox->interactiveProcess(['-p', $prompt]);
+        $process->run();
     }
 
     /**
      * Install superpowers plugins into the sandbox.
      */
-    protected function installSandboxPlugins(): void
+    protected function installSandboxPlugins(DockerSandbox $sandbox): void
     {
-        $sandbox = app(DockerSandbox::class);
-
         $this->info('Installing sandbox plugins...');
 
         $outputCallback = fn ($type, $buffer) => $this->output->write($buffer);

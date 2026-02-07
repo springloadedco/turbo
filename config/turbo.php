@@ -10,6 +10,8 @@ return [
     | Commands that verify code quality during development. These are injected
     | into skill templates at publish time using {{ $feedback_loops }} (inline)
     | or {{ $feedback_loops_checklist }} (markdown checklist) placeholders.
+    | Make sure to rerun `turbo:install` after changing this config to update
+    | the published templates.
     |
     */
     'feedback_loops' => [
@@ -27,7 +29,7 @@ return [
         | passed to `docker sandbox run`.
         |
         */
-        'image' => env('TURBO_DOCKER_IMAGE', 'turbo'),
+        'image' => env('TURBO_DOCKER_IMAGE', "turbo"),
 
         /*
         |--------------------------------------------------------------------------
