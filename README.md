@@ -24,7 +24,7 @@ Turbo supercharges AI-assisted Laravel development by providing:
 Since Turbo is a private repository, you'll need to add it as a VCS repository source. This one-liner adds the repository and requires the package:
 
 ```bash
-composer config repositories.turbo vcs git@github.com:springloadedco/turbo.git && composer require springloadedco/turbo --dev
+composer config repositories.turbo vcs git@github.com:springloadedco/turbo.git && composer require springloadedco/turbo:@dev --dev
 ```
 
 ### From a Local Clone
