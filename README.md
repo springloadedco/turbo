@@ -5,7 +5,7 @@
 Turbo supercharges AI-assisted Laravel development by providing:
 
 - **AI Skills & Guidelines** - Curated patterns for Laravel development (controllers, actions, testing, validation, Inertia) and GitHub workflow automation
-- **Multi-Agent Support** - Publish skills to Claude, Cursor, Codex, and other AI agents via [`npx skills`](https://skills.sh)
+- **Multi-Agent Support** - Publish skills to Claude, Cursor, Codex, GitHub Copilot, and other AI agents via [`npx skills`](https://skills.sh)
 - **Feedback Loops** - Configurable verification commands injected into skill templates at publish time
 - **Docker Sandbox** - Build and run Claude in a sandboxed Docker environment with your project workspace mounted
 - **Artisan Commands** - Publish skills, build sandbox images, and run Claude sessions from the command line
@@ -54,7 +54,7 @@ php artisan turbo:install
 This command:
 
 1. Presents a multiselect of all available skills (Turbo skills + recommended third-party skills)
-2. Presents a multiselect of agents to install to (Claude Code, Cursor, Codex)
+2. Presents a multiselect of agents to install to (Claude Code, Cursor, Codex, GitHub Copilot)
 3. Installs selected skills non-interactively via `npx skills add`
 4. Processes skill templates, injecting your project's configured feedback loops
 5. Optionally configures a GitHub token for `gh` CLI access (stored in `.claude/settings.local.json`)

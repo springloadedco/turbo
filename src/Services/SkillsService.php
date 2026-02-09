@@ -51,6 +51,7 @@ class SkillsService
             'claude-code' => 'Claude Code',
             'cursor' => 'Cursor',
             'codex' => 'Codex',
+            'github-copilot' => 'GitHub Copilot',
         ];
     }
 
@@ -66,6 +67,7 @@ class SkillsService
             '.claude/skills',
             '.cursor/skills',
             '.codex/skills',
+            '.github/skills',
         ];
 
         $paths = [];

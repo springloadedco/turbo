@@ -332,7 +332,7 @@ class InstallCommand extends Command
             : [];
 
         $settings['env'] = array_merge($settings['env'] ?? [], [
-            'GITHUB_TOKEN' => $token,
+            'GH_TOKEN' => $token,
         ]);
 
         $this->writeSettings($settingsPath, $settings);
