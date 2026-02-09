@@ -4,6 +4,7 @@ namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Str;
 use Springloaded\Turbo\Commands\Concerns\ProcessesSkills;
 use Springloaded\Turbo\Services\DockerSandbox;
 use Springloaded\Turbo\Services\FeedbackLoopDetector;
@@ -300,17 +301,24 @@ class InstallCommand extends Command
      */
     protected function configureGitHubToken(): void
     {
+        $sandboxName = 'claude-'.Str::slug(basename(base_path()));
+        $tokenUrl = 'https://github.com/settings/personal-access-tokens/new?name='.urlencode('turbo-'.$sandboxName).'&description=Turbo+%28Claude+gh+CLI%29&contents=write&issues=write&pull_requests=write&workflows=write&actions=write';
+
         $wantsToken = confirm(
-            label: 'Do you have a GitHub token to configure? (enables gh CLI access for Claude)',
-            default: false,
+            label: 'Configure gh CLI access for Claude? (recommended)',
+            hint: 'A GitHub token allows Claude to create issues, pull requests, and manage workflows via the gh CLI.',
+            default: true,
         );
 
         if (! $wantsToken) {
             return;
         }
 
+        $this->line("  Generate a token here: <href=$tokenUrl>$tokenUrl</>");
+        $this->newLine();
+
         $token = text(
-            label: 'Enter your GitHub token',
+            label: 'Paste your GitHub token',
             required: true,
         );
 
