@@ -2,11 +2,38 @@
 
 ## What is Turbo?
 
-Turbo is Springloaded's opinionated toolkit for AI-assisted Laravel development. It combines open source agent superpowers — brainstorming, plan creation, and plan execution — with Springloaded's own standards, skills, and tooling to create a consistent, high-quality environment for building applications.
+Turbo is Springloaded's opinionated toolkit for AI-assisted Laravel development. It combines open source [Superpowers](https://github.com/obra/superpowers) — brainstorming, plan creation, and plan execution — with Springloaded's own standards, skills, and tooling to create a consistent, high-quality environment for building applications.
+
+### Superpowers Workflow
+
+Turbo includes the [Superpowers](https://github.com/obra/superpowers) plugin, which provides a structured development workflow through slash commands:
+
+```mermaid
+flowchart LR
+    A["💡 /brainstorming"] --> B["📋 /writing-plans"]
+    B --> C["🚀 /executing-plans"]
+    C --> D{"Review"}
+    D -- "Needs changes" --> B
+    D -- "Approved" --> E["✅ Done"]
+```
+
+| Command | What it does |
+|---------|-------------|
+| `/brainstorming` | Explore the idea — ask questions, consider approaches, produce a design |
+| `/writing-plans` | Turn the design into a step-by-step implementation plan |
+| `/executing-plans` | Execute the plan with review checkpoints between steps |
+
+Other superpowers activate automatically when relevant — test-driven development before writing code, systematic debugging when something breaks, verification before claiming work is done.
+
+### Skills
 
 **Skills** encode how Springloaded builds Laravel apps — controllers, actions, testing, validation, Inertia, GitHub workflows, and more. They work with any agent that supports skills (Claude, Cursor, Codex, GitHub Copilot) via [`npx skills`](https://skills.sh), so the whole team builds the same way regardless of which agent they use.
 
+### Docker Sandbox
+
 **Docker Sandbox** lets you run Claude in an isolated environment with your project workspace mounted, so agents can work freely without touching your local machine. Build the sandbox image once, then launch interactive sessions or fire off one-shot prompts from the command line.
+
+### Feedback Loops
 
 **Feedback Loops** wire your project's verification commands (tests, linting, static analysis) directly into skill templates, so agents check their own work as they go.
 
