@@ -8,13 +8,10 @@ Turbo is Springloaded's opinionated toolkit for AI-assisted Laravel development.
 
 Turbo includes the [Superpowers](https://github.com/obra/superpowers) plugin, which provides a structured development workflow through slash commands:
 
-```mermaid
-flowchart LR
-    A["💡 /brainstorming"] --> B["📋 /writing-plans"]
-    B --> C["🚀 /executing-plans"]
-    C --> D{"Review"}
-    D -- "Needs changes" --> B
-    D -- "Approved" --> E["✅ Done"]
+```
+/brainstorming ──> /writing-plans ──> /executing-plans ──> Review
+                        ^                                    │
+                        └────────── needs changes ───────────┘
 ```
 
 | Command | What it does |
