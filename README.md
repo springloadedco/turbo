@@ -51,20 +51,19 @@ Composer will automatically symlink the local directory, so changes are reflecte
 
 ## Getting Started
 
-Run the install command to set up Turbo for your project:
+Run the install command to configure skills, set up a GitHub token, and build the Docker sandbox:
 
 ```bash
 php artisan turbo:install
 ```
 
-This command:
+Then launch an interactive Claude session in the sandbox:
 
-1. Presents a multiselect of all available skills (Turbo skills + recommended third-party skills)
-2. Presents a multiselect of agents to install to (Claude Code, Cursor, Codex, GitHub Copilot)
-3. Installs selected skills non-interactively via `npx skills add`
-4. Processes skill templates, injecting your project's configured feedback loops
-5. Optionally configures a GitHub token for `gh` CLI access (stored in `.claude/settings.local.json`)
-6. Optionally builds the Docker sandbox image
+```bash
+php artisan turbo:claude
+```
+
+On the first run, you'll be prompted to authenticate with Claude. This only needs to be done once per sandbox.
 
 To re-publish Turbo's skills after a package update:
 
