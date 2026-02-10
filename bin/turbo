@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+TESTBENCH="$PROJECT_DIR/vendor/bin/testbench"
+
+if [ ! -f "$TESTBENCH" ]; then
+    echo "Error: testbench not found. Run 'composer install' first." >&2
+    exit 1
+fi
+
+COMMAND="${1:?Usage: bin/turbo <command> [args...]}"
+shift
+
+exec "$TESTBENCH" "turbo:$COMMAND" "$@"

@@ -163,6 +163,37 @@ php artisan turbo:prompt "Write tests for the UserController"
 
 Sends the prompt to Claude inside the sandbox and streams the output back to your terminal.
 
+## Development
+
+When working on Turbo itself, use `bin/turbo` to run commands via Orchestra Testbench:
+
+```bash
+bin/turbo install    # turbo:install
+bin/turbo build      # turbo:build
+bin/turbo claude     # turbo:claude
+bin/turbo prompt "…" # turbo:prompt
+```
+
+Optionally, install [direnv](https://direnv.net) to drop the `bin/` prefix and just use `turbo <command>`:
+
+```bash
+brew install direnv
+```
+
+Add the hook to your shell (`~/.zshrc`):
+
+```bash
+eval "$(direnv hook zsh)"
+```
+
+Then allow the project's `.envrc`:
+
+```bash
+direnv allow
+```
+
+After that, `turbo claude`, `turbo build`, etc. work directly whenever you're in the project directory.
+
 ## Testing
 
 ```bash
