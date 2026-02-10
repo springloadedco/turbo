@@ -2,13 +2,13 @@
 
 ## What is Turbo?
 
-Turbo supercharges AI-assisted Laravel development by providing:
+Turbo is Springloaded's opinionated toolkit for AI-assisted Laravel development. It combines open source agent superpowers — brainstorming, plan creation, and plan execution — with Springloaded's own standards, skills, and tooling to create a consistent, high-quality environment for building applications.
 
-- **AI Skills & Guidelines** - Curated patterns for Laravel development (controllers, actions, testing, validation, Inertia) and GitHub workflow automation
-- **Multi-Agent Support** - Publish skills to Claude, Cursor, Codex, GitHub Copilot, and other AI agents via [`npx skills`](https://skills.sh)
-- **Feedback Loops** - Configurable verification commands injected into skill templates at publish time
-- **Docker Sandbox** - Build and run Claude in a sandboxed Docker environment with your project workspace mounted
-- **Artisan Commands** - Publish skills, build sandbox images, and run Claude sessions from the command line
+**Skills** encode how Springloaded builds Laravel apps — controllers, actions, testing, validation, Inertia, GitHub workflows, and more. They work with any agent that supports skills (Claude, Cursor, Codex, GitHub Copilot) via [`npx skills`](https://skills.sh), so the whole team builds the same way regardless of which agent they use.
+
+**Docker Sandbox** lets you run Claude in an isolated environment with your project workspace mounted, so agents can work freely without touching your local machine. Build the sandbox image once, then launch interactive sessions or fire off one-shot prompts from the command line.
+
+**Feedback Loops** wire your project's verification commands (tests, linting, static analysis) directly into skill templates, so agents check their own work as they go.
 
 ### Prerequisites
 
