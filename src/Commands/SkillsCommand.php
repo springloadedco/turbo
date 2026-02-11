@@ -32,19 +32,19 @@ class SkillsCommand extends Command
             return self::FAILURE;
         }
 
-        $packagePath = $this->skills->getPackagePath();
+        $skillsPath = $this->skills->getSkillsSourcePath();
 
-        if (! $this->files->isDirectory($packagePath.'/.ai/skills')) {
+        if (! $this->files->isDirectory($skillsPath)) {
             $this->error('No skills found in package.');
 
             return self::FAILURE;
         }
 
         $this->info('Publishing Turbo skills via npx skills (https://skills.sh)...');
-        $this->line('Source: '.$packagePath);
+        $this->line('Source: '.$skillsPath);
         $this->newLine();
 
-        $exitCode = $this->runNpxSkillsAdd($packagePath);
+        $exitCode = $this->runNpxSkillsAdd($skillsPath);
 
         if ($exitCode !== 0) {
             $this->error('Failed to publish skills.');

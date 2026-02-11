@@ -79,7 +79,7 @@ class InstallCommand extends Command
             $this->info('Installing Turbo skills...');
 
             $exitCode = $this->runNpxSkillsAdd(
-                $this->skills->getPackagePath(),
+                $this->skills->getSkillsSourcePath(),
                 $selectedSkills['turbo'],
                 $selectedAgents
             );

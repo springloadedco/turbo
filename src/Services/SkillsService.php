@@ -19,6 +19,18 @@ class SkillsService
     }
 
     /**
+     * Get the path to the package's skills directory.
+     *
+     * npx skills scans .agents/skills/ by default, but Turbo's
+     * publishable skills live in .ai/skills/ — so we point directly
+     * at that directory when installing.
+     */
+    public function getSkillsSourcePath(): string
+    {
+        return $this->getPackagePath().'/.ai/skills';
+    }
+
+    /**
      * Get available skill names from the package's .ai/skills directory.
      *
      * @return array<string>
