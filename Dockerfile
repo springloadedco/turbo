@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   unzip ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
+# Node.js 22 (base image ships v20 which is too old for modern TypeScript)
+RUN npm install -g n && n 22
+
 # Composer
 RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
   && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
