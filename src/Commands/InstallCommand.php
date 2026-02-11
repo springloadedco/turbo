@@ -278,6 +278,10 @@ class InstallCommand extends Command
         $process->setTimeout(null);
         $process->run();
 
+        if (! $process->isSuccessful()) {
+            $this->error($process->getErrorOutput() ?: $process->getOutput());
+        }
+
         return $process->getExitCode();
     }
 
