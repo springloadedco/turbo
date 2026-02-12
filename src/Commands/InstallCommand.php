@@ -305,18 +305,38 @@ class InstallCommand extends Command
      */
     protected function configureGitHubToken(): void
     {
+        $settingsPath = base_path('.claude/settings.local.json');
+        $settings = $this->files->exists($settingsPath)
+            ? json_decode($this->files->get($settingsPath), true) ?? []
+            : [];
+
+        $existingToken = $settings['env']['GH_TOKEN'] ?? null;
+
+        if ($existingToken) {
+            $masked = substr($existingToken, 0, 4).'...'.substr($existingToken, -4);
+
+            $replace = confirm(
+                label: "GitHub token already configured ({$masked}). Replace it?",
+                default: false,
+            );
+
+            if (! $replace) {
+                return;
+            }
+        } else {
+            $wantsToken = confirm(
+                label: 'Configure gh CLI access for Claude? (recommended)',
+                hint: 'A GitHub token allows Claude to create issues, pull requests, and manage workflows via the gh CLI.',
+                default: true,
+            );
+
+            if (! $wantsToken) {
+                return;
+            }
+        }
+
         $sandboxName = 'claude-'.Str::slug(basename(base_path()));
         $tokenUrl = 'https://github.com/settings/personal-access-tokens/new?name='.urlencode('turbo-'.$sandboxName).'&description=Turbo+%28Claude+gh+CLI%29&contents=write&issues=write&pull_requests=write&workflows=write&actions=write';
-
-        $wantsToken = confirm(
-            label: 'Configure gh CLI access for Claude? (recommended)',
-            hint: 'A GitHub token allows Claude to create issues, pull requests, and manage workflows via the gh CLI.',
-            default: true,
-        );
-
-        if (! $wantsToken) {
-            return;
-        }
 
         $this->line("  Generate a token here: <href=$tokenUrl>$tokenUrl</>");
         $this->newLine();
@@ -329,11 +349,6 @@ class InstallCommand extends Command
         if (empty($token)) {
             return;
         }
-
-        $settingsPath = base_path('.claude/settings.local.json');
-        $settings = $this->files->exists($settingsPath)
-            ? json_decode($this->files->get($settingsPath), true) ?? []
-            : [];
 
         $settings['env'] = array_merge($settings['env'] ?? [], [
             'GH_TOKEN' => $token,
@@ -439,7 +454,7 @@ class InstallCommand extends Command
 
         $wantsDocker = confirm(
             label: 'Set up Docker sandbox? (builds the Turbo sandbox image)',
-            default: false,
+            default: true,
         );
 
         if (! $wantsDocker) {
