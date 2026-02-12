@@ -5,7 +5,8 @@ use Springloaded\Turbo\Services\SkillsService;
 it('returns correct package path', function () {
     $service = app(SkillsService::class);
 
-    expect(basename($service->getPackagePath()))->toBe('turbo');
+    expect($service->getPackagePath())->toBeDirectory()
+        ->and($service->getSkillsSourcePath())->toEndWith('.ai/skills');
 });
 
 it('returns installed skill paths for existing directories', function () {

@@ -89,7 +89,7 @@ it('passes package path to npx skills add', function () {
     $this->artisan('turbo:skills', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    expect($capturedPath)->toEndWith('turbo');
+    expect($capturedPath)->toEndWith('.ai/skills');
 });
 
 it('processes templates after npx skills installs', function () {

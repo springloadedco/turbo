@@ -99,22 +99,22 @@ it('installs all skills to all agents in non-interactive mode', function () {
     expect($capturedCalls)->toHaveCount(2);
 
     // First call: turbo package skills
-    expect($capturedCalls[0]['source'])->toEndWith('turbo');
+    expect($capturedCalls[0]['source'])->toEndWith('.ai/skills');
     expect($capturedCalls[0]['skills'])->toContain('laravel-controllers');
     expect($capturedCalls[0]['skills'])->toContain('github-issue');
-    expect($capturedCalls[0]['agents'])->toBe(['claude-code', 'cursor', 'codex']);
+    expect($capturedCalls[0]['agents'])->toBe(['claude-code', 'cursor', 'codex', 'github-copilot']);
 
     // Second call: agent-browser
     expect($capturedCalls[1]['source'])->toBe('vercel-labs/agent-browser');
     expect($capturedCalls[1]['skills'])->toBe(['agent-browser']);
-    expect($capturedCalls[1]['agents'])->toBe(['claude-code', 'cursor', 'codex']);
+    expect($capturedCalls[1]['agents'])->toBe(['claude-code', 'cursor', 'codex', 'github-copilot']);
 });
 
 it('processes templates after installing turbo skills', function () {
     registerTestableInstallCommand([
         'runNpxSkillsAdd' => function ($source) {
             // Only simulate file creation for turbo source (not third-party)
-            if (str_ends_with($source, 'turbo')) {
+            if (str_ends_with($source, '.ai/skills')) {
                 $skillsPath = base_path('.claude/skills/github-issue');
                 File::makeDirectory($skillsPath, 0755, true);
                 File::copyDirectory(
@@ -147,7 +147,7 @@ it('fails when third-party skill installation fails', function () {
     registerTestableInstallCommand([
         'runNpxSkillsAdd' => function ($source) {
             // Turbo skills succeed, third-party fails
-            return str_ends_with($source, 'turbo') ? 0 : 1;
+            return str_ends_with($source, '.ai/skills') ? 0 : 1;
         },
     ]);
 
