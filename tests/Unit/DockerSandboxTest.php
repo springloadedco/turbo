@@ -241,3 +241,66 @@ it('deduplicates hosts when APP_URL matches config entry', function () {
     unlink($workspace.'/.env');
     rmdir($workspace);
 });
+
+it('creates proxy bypass process for a host on port 80', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->proxyBypassProcess('app.test');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('docker')
+        ->toContain('sandbox')
+        ->toContain('network')
+        ->toContain('proxy')
+        ->toContain('claude-cpbc')
+        ->toContain('--bypass-host')
+        ->toContain('app.test:80');
+});
+
+it('preserves explicit port in proxy bypass', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->proxyBypassProcess('api.test:8080');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)->toContain('api.test:8080');
+});
+
+it('creates prepareSandboxProcess with workspace and host entries', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
+    $sandbox->shouldReceive('resolveHosts')->andReturn(['app.test']);
+    $sandbox->shouldReceive('resolveHostIp')->andReturn('192.168.65.254');
+
+    $process = $sandbox->prepareSandboxProcess();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('docker')
+        ->toContain('sandbox')
+        ->toContain('exec')
+        ->toContain('setup-sandbox')
+        ->toContain('/Users/dev/Sites/cpbc')
+        ->toContain('app.test:192.168.65.254');
+});
+
+it('creates prepareSandboxProcess without host entries when none configured', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
+    $sandbox->shouldReceive('resolveHosts')->andReturn([]);
+
+    $process = $sandbox->prepareSandboxProcess();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('setup-sandbox')
+        ->toContain('/Users/dev/Sites/cpbc')
+        ->not->toContain(':192');
+});
