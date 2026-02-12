@@ -79,9 +79,9 @@ composer require springloadedco/turbo:@dev --dev
 
 Composer will automatically symlink the local directory, so changes are reflected immediately without re-installing.
 
-### CI Authentication
+### CI Authentication in GitHub Workflows
 
-Since Turbo is a private repo, CI runners need a [GitHub personal access token](https://github.com/settings/tokens) with read access to the repository. Add it as a `COMPOSER_AUTH` secret in your project, then configure Composer before installing dependencies:
+Since Turbo is a private repo, CI runners need a [GitHub personal access token](https://github.com/settings/tokens) with read access to the repository. Add it as a `COMPOSER_AUTH` secret in your project, then configure Composer before installing dependencies in your workflows:
 
 ```yaml
 - name: Configure Composer auth
