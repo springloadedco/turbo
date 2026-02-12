@@ -236,6 +236,7 @@ class DockerSandbox
     public function interactiveProcess(array $claudeArgs = []): Process
     {
         $this->ensureSandboxExists();
+        $this->prepareSandbox();
 
         $command = [
             'docker', 'sandbox', 'run',
@@ -256,6 +257,7 @@ class DockerSandbox
     public function promptProcess(string $prompt): Process
     {
         $this->ensureSandboxExists();
+        $this->prepareSandbox();
 
         return $this->ptyProcess([
             'docker', 'sandbox', 'run',
@@ -292,6 +294,7 @@ class DockerSandbox
     protected function runInSandbox(array $claudeArgs, ?callable $output = null): Process
     {
         $this->ensureSandboxExists();
+        $this->prepareSandbox();
 
         $command = array_merge([
             'docker', 'sandbox', 'run',
