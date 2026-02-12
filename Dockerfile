@@ -23,5 +23,9 @@ RUN agent-browser install --with-deps
 RUN git config --system credential.https://github.com.helper '!/usr/bin/gh auth git-credential' \
   && git config --system credential.https://gist.github.com.helper '!/usr/bin/gh auth git-credential'
 
+# Sandbox preparation script (node_modules isolation + host access)
+COPY docker/setup-sandbox.sh /usr/local/bin/setup-sandbox
+RUN chmod +x /usr/local/bin/setup-sandbox
+
 # IMPORTANT: run as the sandbox base user
 USER agent

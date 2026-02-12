@@ -54,6 +54,21 @@ return [
         |
         */
         'workspace' => env('TURBO_DOCKER_WORKSPACE', base_path()),
+
+        /*
+        |----------------------------------------------------------------------
+        | Host Access
+        |----------------------------------------------------------------------
+        |
+        | Hostnames the sandbox can reach on the host machine. Turbo
+        | automatically includes the hostname parsed from APP_URL in
+        | your .env file. Add extra hosts here for APIs or other
+        | services running on the host.
+        |
+        | Port 80 is used by default. Override per-host with 'host:port'.
+        |
+        */
+        'hosts' => [],
     ],
 
 ];
