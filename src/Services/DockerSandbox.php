@@ -32,6 +32,37 @@ class DockerSandbox
     }
 
     /**
+     * Resolve hostnames the sandbox should be able to reach on the host.
+     *
+     * Parses APP_URL from the workspace .env and merges with
+     * any additional hosts from config('turbo.docker.hosts').
+     *
+     * @return array<string>
+     */
+    public function resolveHosts(): array
+    {
+        $hosts = [];
+
+        // Parse APP_URL from workspace .env
+        $envPath = $this->workspace.'/.env';
+        if (file_exists($envPath)) {
+            $envContent = file_get_contents($envPath);
+            if (preg_match('/^APP_URL=(.+)$/m', $envContent, $matches)) {
+                $parsed = parse_url(trim($matches[1]));
+                if (! empty($parsed['host'])) {
+                    $hosts[] = $parsed['host'];
+                }
+            }
+        }
+
+        // Merge config hosts
+        $configHosts = config('turbo.docker.hosts', []);
+        $hosts = array_merge($hosts, $configHosts);
+
+        return array_values(array_unique($hosts));
+    }
+
+    /**
      * Check if a sandbox with this name already exists.
      */
     public function sandboxExists(): bool

@@ -159,3 +159,85 @@ it('promptProcess ensures sandbox exists and returns simple run command', functi
         ->not->toContain('--load-local-template')
         ->not->toContain('create');
 });
+
+it('resolves hosts from APP_URL in workspace .env', function () {
+    $workspace = sys_get_temp_dir().'/turbo-test-'.uniqid();
+    mkdir($workspace);
+    file_put_contents($workspace.'/.env', "APP_URL=http://grace-marketing-site.test\n");
+
+    config()->set('turbo.docker.workspace', $workspace);
+    config()->set('turbo.docker.hosts', []);
+
+    $sandbox = app(DockerSandbox::class);
+    $hosts = $sandbox->resolveHosts();
+
+    expect($hosts)->toBe(['grace-marketing-site.test']);
+
+    // Cleanup
+    unlink($workspace.'/.env');
+    rmdir($workspace);
+});
+
+it('merges config hosts with APP_URL host', function () {
+    $workspace = sys_get_temp_dir().'/turbo-test-'.uniqid();
+    mkdir($workspace);
+    file_put_contents($workspace.'/.env', "APP_URL=http://app.test\n");
+
+    config()->set('turbo.docker.workspace', $workspace);
+    config()->set('turbo.docker.hosts', ['api.test']);
+
+    $sandbox = app(DockerSandbox::class);
+    $hosts = $sandbox->resolveHosts();
+
+    expect($hosts)->toBe(['app.test', 'api.test']);
+
+    unlink($workspace.'/.env');
+    rmdir($workspace);
+});
+
+it('returns only config hosts when no .env exists', function () {
+    $workspace = sys_get_temp_dir().'/turbo-test-'.uniqid();
+    mkdir($workspace);
+
+    config()->set('turbo.docker.workspace', $workspace);
+    config()->set('turbo.docker.hosts', ['api.test']);
+
+    $sandbox = app(DockerSandbox::class);
+    $hosts = $sandbox->resolveHosts();
+
+    expect($hosts)->toBe(['api.test']);
+
+    rmdir($workspace);
+});
+
+it('returns empty array when no hosts configured and no .env', function () {
+    $workspace = sys_get_temp_dir().'/turbo-test-'.uniqid();
+    mkdir($workspace);
+
+    config()->set('turbo.docker.workspace', $workspace);
+    config()->set('turbo.docker.hosts', []);
+
+    $sandbox = app(DockerSandbox::class);
+    $hosts = $sandbox->resolveHosts();
+
+    expect($hosts)->toBe([]);
+
+    rmdir($workspace);
+});
+
+it('deduplicates hosts when APP_URL matches config entry', function () {
+    $workspace = sys_get_temp_dir().'/turbo-test-'.uniqid();
+    mkdir($workspace);
+    file_put_contents($workspace.'/.env', "APP_URL=http://app.test\n");
+
+    config()->set('turbo.docker.workspace', $workspace);
+    config()->set('turbo.docker.hosts', ['app.test', 'api.test']);
+
+    $sandbox = app(DockerSandbox::class);
+    $hosts = $sandbox->resolveHosts();
+
+    expect($hosts)->toBe(['app.test', 'api.test']);
+
+    unlink($workspace.'/.env');
+    rmdir($workspace);
+});
