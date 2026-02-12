@@ -65,10 +65,16 @@ If you have Turbo cloned locally and want to symlink it instead, point Composer 
 composer config repositories.turbo path /path/to/turbo
 ```
 
+You'll need to disable symlinking if you plan on using Laravel Boost. If you install without the symlink, you'll need to re-run composer require any time you want to pull changes.
+
+```bash
+composer config repositories.turbo.options.symlink false
+```
+
 Then require the package:
 
 ```bash
-composer require springloadedco/turbo --dev
+composer require springloadedco/turbo:@dev --dev
 ```
 
 Composer will automatically symlink the local directory, so changes are reflected immediately without re-installing.
