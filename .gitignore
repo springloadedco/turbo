@@ -34,3 +34,4 @@ phpstan.neon
 testbench.yaml
 /docs/plans
 /coverage
+.worktrees/

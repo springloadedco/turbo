@@ -32,6 +32,117 @@ class DockerSandbox
     }
 
     /**
+     * Resolve hostnames the sandbox should be able to reach on the host.
+     *
+     * Parses APP_URL from the workspace .env and merges with
+     * any additional hosts from config('turbo.docker.hosts').
+     *
+     * @return array<string>
+     */
+    public function resolveHosts(): array
+    {
+        $hosts = [];
+
+        // Parse APP_URL from workspace .env
+        $envPath = $this->workspace.'/.env';
+        if (file_exists($envPath)) {
+            $envContent = file_get_contents($envPath);
+            if (preg_match('/^APP_URL=(.+)$/m', $envContent, $matches)) {
+                $parsed = parse_url(trim($matches[1]));
+                if (! empty($parsed['host'])) {
+                    $hosts[] = $parsed['host'];
+                }
+            }
+        }
+
+        // Merge config hosts
+        $configHosts = config('turbo.docker.hosts', []);
+        $hosts = array_merge($hosts, $configHosts);
+
+        return array_values(array_unique($hosts));
+    }
+
+    /**
+     * Create a process to bypass the sandbox proxy for a host.
+     *
+     * Restricts bypass to port 80 by default for minimal attack surface.
+     * Hosts with explicit ports (e.g. 'api.test:8080') are preserved.
+     */
+    public function proxyBypassProcess(string $host): Process
+    {
+        if (! str_contains($host, ':')) {
+            $host = $host.':80';
+        }
+
+        return $this->process([
+            'docker', 'sandbox', 'network', 'proxy',
+            $this->sandboxName(),
+            '--bypass-host', $host,
+        ]);
+    }
+
+    /**
+     * Resolve the host machine's IP address from inside the sandbox.
+     *
+     * Uses `docker sandbox exec` to resolve host.docker.internal.
+     */
+    public function resolveHostIp(): ?string
+    {
+        $process = $this->execProcess([
+            'bash', '-c', "getent hosts host.docker.internal | awk '{print \$1}'",
+        ]);
+        $process->run();
+
+        $ip = trim($process->getOutput());
+
+        return ! empty($ip) ? $ip : null;
+    }
+
+    /**
+     * Create a process to prepare the sandbox environment.
+     *
+     * Runs the setup script which handles node_modules isolation
+     * and /etc/hosts entries for host dev server access.
+     */
+    public function prepareSandboxProcess(): Process
+    {
+        $command = ['setup-sandbox', $this->workspace];
+
+        $hosts = $this->resolveHosts();
+        if (! empty($hosts)) {
+            $hostIp = $this->resolveHostIp();
+            if ($hostIp) {
+                foreach ($hosts as $host) {
+                    // Strip port for /etc/hosts (port is only for proxy bypass)
+                    $hostname = str_contains($host, ':') ? explode(':', $host)[0] : $host;
+                    $command[] = $hostname.':'.$hostIp;
+                }
+            }
+        }
+
+        return $this->execProcess($command);
+    }
+
+    /**
+     * Prepare the sandbox for a session.
+     *
+     * Configures proxy bypasses for host access (runs on host),
+     * then runs the setup script inside the sandbox for node_modules
+     * isolation and /etc/hosts entries.
+     */
+    public function prepareSandbox(): void
+    {
+        // Configure proxy bypasses from the host side
+        $hosts = $this->resolveHosts();
+        foreach ($hosts as $host) {
+            $this->proxyBypassProcess($host)->run();
+        }
+
+        // Run setup script inside the sandbox
+        $this->prepareSandboxProcess()->run();
+    }
+
+    /**
      * Check if a sandbox with this name already exists.
      */
     public function sandboxExists(): bool
@@ -125,6 +236,7 @@ class DockerSandbox
     public function interactiveProcess(array $claudeArgs = []): Process
     {
         $this->ensureSandboxExists();
+        $this->prepareSandbox();
 
         $command = [
             'docker', 'sandbox', 'run',
@@ -145,6 +257,7 @@ class DockerSandbox
     public function promptProcess(string $prompt): Process
     {
         $this->ensureSandboxExists();
+        $this->prepareSandbox();
 
         return $this->ptyProcess([
             'docker', 'sandbox', 'run',
@@ -181,6 +294,7 @@ class DockerSandbox
     protected function runInSandbox(array $claudeArgs, ?callable $output = null): Process
     {
         $this->ensureSandboxExists();
+        $this->prepareSandbox();
 
         $command = array_merge([
             'docker', 'sandbox', 'run',
