@@ -1,12 +1,33 @@
 ---
 name: agent-captures
 description: Use when taking screenshots, PDFs, or video recordings with agent-browser in a Laravel project. Applies to any visual capture command including screenshot, pdf, and record.
-allowed-tools: Bash(agent-browser:*), Bash(mkdir:*)
+allowed-tools: Bash(agent-browser:*), Bash(mkdir:*), Bash(npm:run build), Bash(rm:public/hot)
 ---
 
 # Agent Captures
 
 Save all agent-browser visual captures to `storage/app/agent-captures/` instead of temp directories or the project root.
+
+## Before You Capture
+
+**Always build frontend assets before previewing.** The sandbox can't reach the host's Vite dev server, so pages that load JS/CSS via Vite will appear blank.
+
+```bash
+# If the host was running `npm run dev`, Laravel will try to use dev server URLs.
+# Delete the hot file so Laravel falls back to the build manifest.
+rm -f public/hot
+
+# Build assets using the sandbox's Linux-native node_modules
+npm run build
+```
+
+**Why this is necessary:**
+- Laravel's `@vite` directive checks for `public/hot` — if it exists, it serves `http://localhost:5173/...` URLs
+- `localhost:5173` inside the sandbox is the sandbox itself, not the host's Vite dev server
+- Deleting `public/hot` and building makes Laravel serve static assets from `public/build/manifest.json`
+- The host's `npm run dev` will recreate `public/hot` when restarted — no lasting impact
+
+**Do this every time**, even if you think assets are already built. It's fast and avoids blank-page debugging.
 
 ## The Rule
 
