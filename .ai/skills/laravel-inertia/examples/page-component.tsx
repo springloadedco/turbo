@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from '@inertiajs/react';
 import { Page } from '@/@types/Page';
 import { Authenticated } from '@/layouts/Authenticated';
-import { show } from '@/actions/App/Http/Controllers/PostController';
+import ShowPostController from '@/actions/App/Http/Controllers/ShowPostController';
 
 /**
  * Props interface extending the base Page props.
@@ -52,7 +52,7 @@ const ShowPost = ({ post, relatedPosts }: Props) => {
             {relatedPosts.map((related) => (
               <li key={related.id}>
                 <Link
-                  href={show(related.id).url}
+                  href={ShowPostController(related.id).url}
                   className="text-blue-600 hover:underline"
                 >
                   {related.title}

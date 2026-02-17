@@ -19,6 +19,19 @@ Use `{Action}{Resource}` consistently across the entire stack:
 
 **Action verbs are suggestions.** Common CRUD actions use Index, Show, Create, Store, Edit, Update, Destroy - but use whatever verb fits your situation: `PublishPostController`, `ArchiveCommentController`, `SyncPostTagsController`, `ImportUsersController`.
 
+### The Action Verb is Required
+
+Every invokable controller does ONE thing — the name MUST say what that thing is. NEVER name a controller with just the resource:
+
+| Wrong | Right |
+|-------|-------|
+| `UserController` | `ShowUserController`, `StoreUserController` |
+| `ProjectController` | `IndexProjectsController`, `UpdateProjectController` |
+| `InvoiceController` | `CreateInvoiceController`, `ExportInvoiceController` |
+| `SettingsController` | `ShowSettingsController`, `UpdateSettingsController` |
+
+`UserController` is ambiguous — show? create? delete? Without the action verb, the controller name communicates nothing about its purpose. If you can't name the action, you haven't clearly defined what the controller does.
+
 ## Creating Files with Artisan
 
 Use artisan commands to generate files in the correct locations:
