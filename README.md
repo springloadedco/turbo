@@ -43,8 +43,10 @@ Other superpowers activate automatically when relevant — test-driven developme
 
 ## Installation
 
+Turbo is currently pre-release. Until a stable version is tagged, require it with `@dev`:
+
 ```bash
-composer require springloadedco/turbo --dev
+composer require springloadedco/turbo:@dev --dev
 ```
 
 ### From a Local Clone
