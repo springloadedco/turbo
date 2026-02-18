@@ -43,18 +43,8 @@ Other superpowers activate automatically when relevant — test-driven developme
 
 ## Installation
 
-### From GitHub (SSH)
-
-Since Turbo is a private repository, you'll need to add it as a VCS repository source:
-
 ```bash
-composer config repositories.turbo vcs git@github.com:springloadedco/turbo.git
-```
-
-Then require the package:
-
-```bash
-composer require springloadedco/turbo:@dev --dev
+composer require springloadedco/turbo --dev
 ```
 
 ### From a Local Clone
@@ -78,15 +68,6 @@ composer require springloadedco/turbo:@dev --dev
 ```
 
 Composer will automatically symlink the local directory, so changes are reflected immediately without re-installing.
-
-### CI Authentication in GitHub Workflows
-
-Since Turbo is a private repo, CI runners need a [GitHub personal access token](https://github.com/settings/tokens) with read access to the repository. Add it as a `COMPOSER_AUTH` secret in your project, then configure Composer before installing dependencies in your workflows:
-
-```yaml
-- name: Configure Composer auth
-  run: composer config github-oauth.github.com ${{ secrets.COMPOSER_AUTH }}
-```
 
 ## Getting Started
 
