@@ -38,6 +38,12 @@ This package registers artisan commands in `src/Commands/`. In a consumer Larave
 
 The `.ai/skills/` directory contains Laravel development patterns that get published to projects installing Turbo. Each skill has a SKILL.md with usage triggers and examples.
 
+### Commit Conventions
+
+- Use conventional commits
+- `feat` is reserved for changes that impact the **public API** of the package
+- Internal tooling (`.agents/skills/`, config, CI, etc.) should use `chore`, not `feat`
+
 ### Testing
 
 Uses Pest with Orchestra Testbench. Run `composer test`.
