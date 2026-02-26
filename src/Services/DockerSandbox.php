@@ -168,7 +168,6 @@ class DockerSandbox
     {
         return $this->process([
             'docker', 'sandbox', 'create',
-            '--load-local-template',
             '-t', $this->image,
             '--name', $this->sandboxName(),
             'claude',

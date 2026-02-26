@@ -34,7 +34,6 @@ it('creates a create process with correct command', function () {
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('create')
-        ->toContain('--load-local-template')
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
