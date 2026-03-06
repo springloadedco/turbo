@@ -34,13 +34,13 @@ it('creates a create process with correct command', function () {
         ->toContain('docker')
         ->toContain('sandbox')
         ->toContain('create')
-        ->toContain('--load-local-template')
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('--name')
         ->toContain('claude-cpbc')
         ->toContain('claude')
-        ->toContain('/Users/dev/Sites/cpbc');
+        ->toContain('/Users/dev/Sites/cpbc')
+        ->not->toContain('--load-local-template');
 });
 
 it('creates a remove process with correct command', function () {
