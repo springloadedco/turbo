@@ -39,7 +39,8 @@ it('creates a create process with correct command', function () {
         ->toContain('--name')
         ->toContain('claude-cpbc')
         ->toContain('claude')
-        ->toContain('/Users/dev/Sites/cpbc');
+        ->toContain('/Users/dev/Sites/cpbc')
+        ->not->toContain('--load-local-template');
 });
 
 it('creates a remove process with correct command', function () {
