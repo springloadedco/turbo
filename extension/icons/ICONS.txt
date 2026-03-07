@@ -1,0 +1,10 @@
+Turbo Feedback Extension Icons
+===============================
+
+This directory should contain the following icon files:
+
+  icon-16.png   - 16x16 pixels   (toolbar icon)
+  icon-48.png   - 48x48 pixels   (extensions page)
+  icon-128.png  - 128x128 pixels (Chrome Web Store / install dialog)
+
+All icons should be PNG format with transparency.
