@@ -9,7 +9,6 @@ use Springloaded\Turbo\Mcp\Tools\GetDeveloperFeedback;
  * Integration tests that verify the MCP tool correctly reads feedback
  * images written to the workspace using the real local Storage disk.
  */
-
 beforeEach(function () {
     $this->disk = Storage::disk('local');
     $this->feedbackDir = 'agent-captures/feedback';
