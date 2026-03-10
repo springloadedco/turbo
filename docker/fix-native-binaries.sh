@@ -29,11 +29,11 @@ fi
 # ------------------------------------------------------------------
 # 1. Hash check — skip shadow install if deps unchanged
 # ------------------------------------------------------------------
-HASH_INPUT="$WORKSPACE/package.json"
+HASH_FILES=("$WORKSPACE/package.json")
 if [ -f "$WORKSPACE/package-lock.json" ]; then
-    HASH_INPUT="$HASH_INPUT $WORKSPACE/package-lock.json"
+    HASH_FILES+=("$WORKSPACE/package-lock.json")
 fi
-CURRENT_HASH=$(cat $HASH_INPUT | md5sum | cut -d' ' -f1)
+CURRENT_HASH=$(cat -- "${HASH_FILES[@]}" | md5sum | cut -d' ' -f1)
 
 STORED_HASH=""
 if [ -f "$SHADOW_DIR/.deps-hash" ]; then

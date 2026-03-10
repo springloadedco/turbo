@@ -24,7 +24,7 @@ for ENTRY in "$@"; do
     HOST_IP="${ENTRY#*:}"
 
     # Add to /etc/hosts if not already present
-    if ! grep -q "$HOSTNAME" /etc/hosts 2>/dev/null; then
+    if ! grep -qwF "$HOSTNAME" /etc/hosts 2>/dev/null; then
         echo "[setup-sandbox] Adding host entry: $HOSTNAME -> $HOST_IP"
         echo "$HOST_IP $HOSTNAME" | sudo tee -a /etc/hosts > /dev/null
     fi

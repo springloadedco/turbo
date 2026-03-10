@@ -37,7 +37,7 @@ RUN chmod +x /usr/local/bin/fix-native-binaries
 
 # npm wrapper — auto-fixes native binaries corrupted by workspace file sync.
 # Intercepts npm install/i/ci, runs with --ignore-scripts to avoid postinstall
-# crashes, then uses fix-native-binaries to shadow-install and copy intact binaries.
+# crashes, then uses fix-native-binaries to shadow-install and symlink intact binaries.
 RUN printf '%s\n' \
   'npm() {' \
   '  # Only intercept install commands' \
