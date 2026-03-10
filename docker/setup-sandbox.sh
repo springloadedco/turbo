@@ -91,6 +91,28 @@ if [ -f "$WORKSPACE/package.json" ]; then
             echo "export ESBUILD_BINARY_PATH=$DEPS_DIR/node_modules/esbuild-wasm/bin/esbuild" >> "$ENV_FILE"
         fi
     fi
+
+    # Replace rollup with @rollup/wasm-node if rollup is present.
+    # Rollup 4.x native binaries crash in the sandbox for the same reason
+    # as esbuild (seccomp blocks required syscalls). Unlike esbuild, rollup
+    # has no env var override — we must replace the package entirely.
+    ROLLUP_VERSION=$(node -e "try{console.log(require('$DEPS_DIR/node_modules/rollup/package.json').version)}catch(e){}" 2>/dev/null)
+    if [ -n "$ROLLUP_VERSION" ]; then
+        WASM_ROLLUP_VERSION=$(node -e "try{console.log(require('$DEPS_DIR/node_modules/@rollup/wasm-node/package.json').version)}catch(e){}" 2>/dev/null)
+        if [ "$ROLLUP_VERSION" != "$WASM_ROLLUP_VERSION" ]; then
+            echo "[setup-sandbox] Installing @rollup/wasm-node@$ROLLUP_VERSION (native binary incompatible with sandbox)"
+            cd "$DEPS_DIR" && npm install --no-save @rollup/wasm-node@"$ROLLUP_VERSION" 2>&1
+        else
+            echo "[setup-sandbox] @rollup/wasm-node@$WASM_ROLLUP_VERSION already installed"
+        fi
+
+        # Symlink rollup → @rollup/wasm-node so require('rollup') gets the WASM version
+        if [ -d "$DEPS_DIR/node_modules/@rollup/wasm-node" ] && [ ! -L "$DEPS_DIR/node_modules/rollup" ]; then
+            echo "[setup-sandbox] Replacing rollup with @rollup/wasm-node symlink"
+            rm -rf "$DEPS_DIR/node_modules/rollup"
+            ln -s "$DEPS_DIR/node_modules/@rollup/wasm-node" "$DEPS_DIR/node_modules/rollup"
+        fi
+    fi
 else
     echo "[setup-sandbox] No package.json found, skipping node setup"
 fi
