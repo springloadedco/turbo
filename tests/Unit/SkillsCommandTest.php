@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\File;
 use Springloaded\Turbo\Commands\SkillsCommand;
 use Springloaded\Turbo\Services\SkillsService;
@@ -37,7 +38,7 @@ function registerTestableSkillsCommand(array $overrides = []): void
             $this->testOverrides = $overrides;
             parent::__construct(
                 app(SkillsService::class),
-                app(\Illuminate\Filesystem\Filesystem::class)
+                app(Filesystem::class)
             );
         }
 

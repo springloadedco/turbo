@@ -1,6 +1,7 @@
 <?php
 
 use Springloaded\Turbo\Services\DockerSandbox;
+use Symfony\Component\Process\Process;
 
 it('can build the sandbox image', function () {
     $sandbox = app(DockerSandbox::class);
@@ -19,7 +20,7 @@ it('can build the sandbox image', function () {
 
 function dockerIsAvailable(): bool
 {
-    $process = new Symfony\Component\Process\Process(['docker', 'info']);
+    $process = new Process(['docker', 'info']);
     $process->run();
 
     return $process->isSuccessful();

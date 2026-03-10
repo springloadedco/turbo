@@ -1,6 +1,7 @@
 <?php
 
 use Springloaded\Turbo\Services\DockerSandbox;
+use Symfony\Component\Process\Process;
 
 it('returns the correct dockerfile path', function () {
     $sandbox = app(DockerSandbox::class);
@@ -66,7 +67,7 @@ it('ensureSandboxExists returns true when sandbox already exists', function () {
 });
 
 it('ensureSandboxExists creates sandbox when it does not exist', function () {
-    $mockProcess = Mockery::mock(Symfony\Component\Process\Process::class);
+    $mockProcess = Mockery::mock(Process::class);
     $mockProcess->shouldReceive('run')->once();
     $mockProcess->shouldReceive('isSuccessful')->andReturn(true);
 
@@ -78,7 +79,7 @@ it('ensureSandboxExists creates sandbox when it does not exist', function () {
 });
 
 it('ensureSandboxExists returns false when creation fails', function () {
-    $mockProcess = Mockery::mock(Symfony\Component\Process\Process::class);
+    $mockProcess = Mockery::mock(Process::class);
     $mockProcess->shouldReceive('run')->once();
     $mockProcess->shouldReceive('isSuccessful')->andReturn(false);
 
@@ -116,7 +117,6 @@ it('creates an exec process with correct command', function () {
         ->toContain('sandbox')
         ->toContain('exec')
         ->toContain('claude-cpbc')
-        ->toContain('--')
         ->toContain('bash')
         ->toContain('echo hello');
 });

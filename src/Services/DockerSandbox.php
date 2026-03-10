@@ -139,7 +139,9 @@ class DockerSandbox
         }
 
         // Run setup script inside the sandbox
-        $this->prepareSandboxProcess()->run();
+        $this->prepareSandboxProcess()->run(function (string $type, string $buffer): void {
+            echo $buffer;
+        });
     }
 
     /**
@@ -223,7 +225,6 @@ class DockerSandbox
         return $this->process(array_merge([
             'docker', 'sandbox', 'exec',
             $this->sandboxName(),
-            '--',
         ], $command));
     }
 
