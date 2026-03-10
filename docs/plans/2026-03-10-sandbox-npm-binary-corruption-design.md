@@ -1,12 +1,14 @@
 # Sandbox npm Binary Corruption — Design
 
 **Date:** 2026-03-10
-**Status:** Approved
+**Status:** Implemented
 **Depends on:** [Research findings](./2026-03-10-sandbox-npm-binary-corruption.md)
 
 ## Summary
 
 Fix npm install and build failures in Docker sandboxes caused by the workspace file sync corrupting native binaries during extraction. The solution combines an npm wrapper function (automatic) with a Claude skill (fallback knowledge).
+
+**Key insight:** Copying intact binaries back into the workspace doesn't work — the file sync re-corrupts them. Symlinks work because the actual binary content stays outside the synced directory.
 
 ## Components
 
@@ -22,25 +24,21 @@ npm install <args>
     ├─ 1. Run `npm install --ignore-scripts <args>` in workspace
     │     (extracts packages, skips postinstall that would crash)
     │
-    ├─ 2. Copy package.json + lockfile to shadow dir (/home/agent/.npm-shadow/)
+    ├─ 2. Call fix-native-binaries, which:
+    │     a. Copies package.json + lockfile to shadow dir (/home/agent/.npm-shadow/)
+    │     b. Runs `npm install --ignore-scripts` in shadow dir
+    │        (gets identical packages with intact binaries)
+    │     c. Symlinks native binaries from shadow → workspace
+    │        (symlinks keep binary content outside the synced directory)
     │
-    ├─ 3. Run `npm install --ignore-scripts` in shadow dir
-    │     (gets identical packages with intact binaries)
-    │
-    ├─ 4. Copy native binaries from shadow → workspace
-    │     - @esbuild/*/bin/esbuild
-    │     - @rollup/*/rollup.*.node
-    │     - Any other native .node addons or binaries
-    │
-    └─ 5. Return original npm exit code
+    └─ 3. Return original npm exit code
 ```
 
 **Location in image:** Appended to `/etc/sandbox-persistent.sh` via `RUN` in Dockerfile. This file is sourced by `CLAUDE_ENV_FILE` before every bash command, making the function always available.
 
 **Binary detection:** Rather than hardcoding package names, scan for:
-- Executable ELF binaries in `node_modules/@*/*/bin/`
-- Native addon `.node` files in `node_modules/@*/*/`
-- Compare MD5 hashes between shadow and workspace — only copy if different
+- Executable binaries in `node_modules/@*/*/bin/` and `node_modules/*/bin/`
+- Native addon `.node` files in `node_modules/@*/*/` and `node_modules/*/`
 
 ### 2. fix-native-binaries script
 
@@ -49,10 +47,10 @@ Standalone script at `/usr/local/bin/fix-native-binaries`. Called by the npm wra
 **Arguments:** `fix-native-binaries <workspace-path>`
 
 **Behavior:**
-1. Copies `package.json` and `package-lock.json` (or `yarn.lock`, `pnpm-lock.yaml`) to `/home/agent/.npm-shadow/`
-2. Runs `npm install --ignore-scripts` in shadow dir
-3. Finds all native binaries in shadow `node_modules/`
-4. Copies them to the workspace `node_modules/`, overwriting corrupted versions
+1. Copies `package.json` and `package-lock.json` to `/home/agent/.npm-shadow/`
+2. Runs `npm install --ignore-scripts` in shadow dir (skipped if hash matches)
+3. Finds all native binaries and executables in shadow `node_modules/`
+4. Replaces workspace copies with symlinks to the shadow dir
 
 ### 3. Sandbox-only skill
 
@@ -86,14 +84,14 @@ RUN printf '%s\n' \
   >> /etc/sandbox-persistent.sh
 
 # Sandbox-only skill — teaches Claude about the workaround
-COPY docker/skills/fix-native-binaries/SKILL.md /home/agent/.claude/skills/fix-native-binaries/SKILL.md
+COPY --chown=agent:agent docker/skills/fix-native-binaries/SKILL.md /home/agent/.claude/skills/fix-native-binaries/SKILL.md
 ```
 
 ## File inventory
 
 | File | Location in image | Purpose |
 |------|-------------------|---------|
-| `docker/fix-native-binaries.sh` | `/usr/local/bin/fix-native-binaries` | Shadow install + binary copy script |
+| `docker/fix-native-binaries.sh` | `/usr/local/bin/fix-native-binaries` | Shadow install + symlink script |
 | `docker/setup-sandbox.sh` | `/usr/local/bin/setup-sandbox` | Host entries only (simplified) |
 | `docker/skills/fix-native-binaries/SKILL.md` | `/home/agent/.claude/skills/fix-native-binaries/SKILL.md` | Fallback knowledge for Claude |
 | `Dockerfile` | N/A | Wires everything together |
@@ -102,17 +100,19 @@ COPY docker/skills/fix-native-binaries/SKILL.md /home/agent/.claude/skills/fix-n
 
 **No package.json:** npm wrapper passes through to real npm. No shadow install needed.
 
-**No native binaries:** Shadow install runs but no binaries to copy. Small overhead (~2-5s) but harmless.
+**No native binaries:** Shadow install runs but no binaries to symlink. Small overhead (~2-5s) but harmless.
 
 **Agent runs npm outside workspace:** The wrapper checks if `$PWD` is within the workspace (synced directory). If not, passes through to real npm without modification.
 
-**Lockfile type:** Support `package-lock.json` (npm), detect and warn for `yarn.lock`/`pnpm-lock.yaml` (not handled by this wrapper — those tools have their own install commands).
+**Lockfile type:** Supports `package-lock.json` (npm). `yarn.lock`/`pnpm-lock.yaml` are not handled by this wrapper — those tools have their own install commands.
 
-**Shadow dir already populated:** Check hash of package.json + lockfile. Skip shadow install if unchanged (same optimization the old setup-sandbox used).
+**Shadow dir already populated:** Check hash of package.json + lockfile. Skip shadow install if unchanged.
+
+**Why symlinks, not copies:** The file sync layer re-corrupts any binary content written into the workspace, including copies of good binaries. Symlinks work because only the symlink metadata lives in the workspace — the actual binary content stays at `/home/agent/.npm-shadow/` outside the synced directory.
 
 ## What this replaces
 
 - All esbuild-wasm logic (removed — native binary works when not corrupted)
 - All @rollup/wasm-node logic (removed — same reason)
 - NODE_PATH / DEPS_DIR isolation approach (removed)
-- The npm wrapper in the current Dockerfile that called `fix-native-binaries` for WASM fallbacks
+- The old setup-sandbox npm/node_modules management (removed)
