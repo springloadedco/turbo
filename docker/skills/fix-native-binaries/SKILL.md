@@ -16,7 +16,7 @@ An npm wrapper function is active in this sandbox. It automatically:
 
 1. Runs `npm install --ignore-scripts` in the workspace (extracts packages, skips postinstall that would crash on corrupted binaries)
 2. Performs a "shadow install" outside the workspace at `/home/agent/.npm-shadow/` (gets identical packages with intact binaries)
-3. Copies native binaries from the shadow dir back to the workspace, replacing corrupted versions
+3. Symlinks native binaries from the shadow dir into the workspace, replacing corrupted files with symlinks to intact copies outside the synced directory
 
 **You don't need to do anything special** — just run `npm install` normally and the wrapper handles it.
 
@@ -38,7 +38,7 @@ If the npm wrapper isn't working or you need to fix binaries manually:
 fix-native-binaries /path/to/workspace
 ```
 
-This runs the shadow install + binary copy process directly.
+This runs the shadow install + symlink process directly.
 
 ## Rules
 

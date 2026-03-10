@@ -3,10 +3,11 @@
 #
 # The sandbox uses file synchronization (not volume mounts) for the workspace.
 # npm install extracts packages correctly, but the sync layer corrupts native
-# binary files during the copy. ELF headers stay intact but content is scrambled.
+# binary files during the copy — and re-corrupts them if you copy good ones in.
 #
 # This script performs a "shadow install" outside the workspace where file sync
-# doesn't interfere, then copies the intact native binaries back.
+# doesn't interfere, then SYMLINKS the intact native binaries into the workspace.
+# Symlinks keep the actual binary content outside the synced directory.
 #
 # Usage: fix-native-binaries <workspace-path>
 
@@ -40,7 +41,7 @@ if [ -f "$SHADOW_DIR/.deps-hash" ]; then
 fi
 
 if [ "$CURRENT_HASH" = "$STORED_HASH" ] && [ -d "$SHADOW_DIR/node_modules" ]; then
-    echo "[fix-native-binaries] Shadow dir up to date (hash match), copying binaries only"
+    echo "[fix-native-binaries] Shadow dir up to date (hash match), symlinking binaries only"
 else
     # ------------------------------------------------------------------
     # 2. Shadow install — get intact binaries outside workspace
@@ -57,80 +58,59 @@ else
 fi
 
 # ------------------------------------------------------------------
-# 3. Copy native binaries from shadow to workspace
+# 3. Symlink native binaries from shadow into workspace
 # ------------------------------------------------------------------
-COPIED=0
+# Replace corrupted workspace binaries with symlinks to the shadow copies.
+# Symlinks keep the actual binary content outside the synced workspace
+# directory, preventing the file sync from corrupting them.
+FIXED=0
+
+symlink_binary() {
+    local shadow_bin="$1"
+    local rel_path="${shadow_bin#$SHADOW_DIR/}"
+    local workspace_bin="$WORKSPACE/$rel_path"
+
+    # Skip if workspace file doesn't exist
+    [ -f "$workspace_bin" ] || [ -L "$workspace_bin" ] || return 0
+
+    # Skip if already symlinked to the right target
+    if [ -L "$workspace_bin" ]; then
+        local current_target
+        current_target=$(readlink "$workspace_bin")
+        if [ "$current_target" = "$shadow_bin" ]; then
+            return 0
+        fi
+    fi
+
+    # Replace the corrupted binary with a symlink to the intact shadow copy
+    rm -f "$workspace_bin"
+    ln -s "$shadow_bin" "$workspace_bin"
+    echo "[fix-native-binaries] Symlinked: $rel_path -> $shadow_bin"
+    FIXED=$((FIXED + 1))
+}
 
 # Find ELF binaries in scoped packages (e.g., @esbuild/linux-arm64/bin/esbuild)
 while IFS= read -r -d '' shadow_bin; do
-    rel_path="${shadow_bin#$SHADOW_DIR/}"
-    workspace_bin="$WORKSPACE/$rel_path"
-
-    if [ -f "$workspace_bin" ]; then
-        shadow_md5=$(md5sum "$shadow_bin" | cut -d' ' -f1)
-        workspace_md5=$(md5sum "$workspace_bin" | cut -d' ' -f1)
-
-        if [ "$shadow_md5" != "$workspace_md5" ]; then
-            echo "[fix-native-binaries] Fixing: $rel_path"
-            cp "$shadow_bin" "$workspace_bin"
-            COPIED=$((COPIED + 1))
-        fi
-    fi
+    symlink_binary "$shadow_bin"
 done < <(find "$SHADOW_DIR/node_modules/@"*/*/bin -type f -executable 2>/dev/null -print0)
 
 # Find native addon .node files in scoped packages
 while IFS= read -r -d '' shadow_bin; do
-    rel_path="${shadow_bin#$SHADOW_DIR/}"
-    workspace_bin="$WORKSPACE/$rel_path"
-
-    if [ -f "$workspace_bin" ]; then
-        shadow_md5=$(md5sum "$shadow_bin" | cut -d' ' -f1)
-        workspace_md5=$(md5sum "$workspace_bin" | cut -d' ' -f1)
-
-        if [ "$shadow_md5" != "$workspace_md5" ]; then
-            echo "[fix-native-binaries] Fixing: $rel_path"
-            cp "$shadow_bin" "$workspace_bin"
-            COPIED=$((COPIED + 1))
-        fi
-    fi
+    symlink_binary "$shadow_bin"
 done < <(find "$SHADOW_DIR/node_modules/@"*/*/ -maxdepth 1 -name "*.node" -type f 2>/dev/null -print0)
 
 # Find native addon .node files in unscoped packages
 while IFS= read -r -d '' shadow_bin; do
-    rel_path="${shadow_bin#$SHADOW_DIR/}"
-    workspace_bin="$WORKSPACE/$rel_path"
-
-    if [ -f "$workspace_bin" ]; then
-        shadow_md5=$(md5sum "$shadow_bin" | cut -d' ' -f1)
-        workspace_md5=$(md5sum "$workspace_bin" | cut -d' ' -f1)
-
-        if [ "$shadow_md5" != "$workspace_md5" ]; then
-            echo "[fix-native-binaries] Fixing: $rel_path"
-            cp "$shadow_bin" "$workspace_bin"
-            COPIED=$((COPIED + 1))
-        fi
-    fi
+    symlink_binary "$shadow_bin"
 done < <(find "$SHADOW_DIR/node_modules" -maxdepth 2 -name "*.node" -type f -not -path "*/node_modules/@*" 2>/dev/null -print0)
 
 # Find executable binaries in unscoped packages' bin directories
 while IFS= read -r -d '' shadow_bin; do
-    rel_path="${shadow_bin#$SHADOW_DIR/}"
-    workspace_bin="$WORKSPACE/$rel_path"
-
-    if [ -f "$workspace_bin" ]; then
-        shadow_md5=$(md5sum "$shadow_bin" | cut -d' ' -f1)
-        workspace_md5=$(md5sum "$workspace_bin" | cut -d' ' -f1)
-
-        if [ "$shadow_md5" != "$workspace_md5" ]; then
-            echo "[fix-native-binaries] Fixing: $rel_path"
-            cp "$shadow_bin" "$workspace_bin"
-            COPIED=$((COPIED + 1))
-        fi
-    fi
+    symlink_binary "$shadow_bin"
 done < <(find "$SHADOW_DIR/node_modules" -maxdepth 3 -path "*/bin/*" -type f -executable -not -path "*/node_modules/@*" -not -path "*/.bin/*" 2>/dev/null -print0)
 
-if [ "$COPIED" -gt 0 ]; then
-    echo "[fix-native-binaries] Fixed $COPIED corrupted binary/binaries"
+if [ "$FIXED" -gt 0 ]; then
+    echo "[fix-native-binaries] Symlinked $FIXED native binary/binaries from shadow dir"
 else
-    echo "[fix-native-binaries] No corrupted binaries found"
+    echo "[fix-native-binaries] All binaries already symlinked"
 fi
