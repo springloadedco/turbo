@@ -52,11 +52,11 @@ class GetDeveloperFeedback extends Tool
             $manifest = json_decode($disk->get($file.'.json'), true);
 
             $responses[] = Response::text(implode("\n", [
-                "Screenshot: ".basename($file),
-                "URL: ".($manifest['url'] ?? 'unknown'),
-                "Annotation: ".($manifest['annotation'] ?? 'none'),
-                "Viewport: ".($manifest['viewport']['width'] ?? '?')."x".($manifest['viewport']['height'] ?? '?'),
-                "Timestamp: ".($manifest['timestamp'] ?? 'unknown'),
+                'Screenshot: '.basename($file),
+                'URL: '.($manifest['url'] ?? 'unknown'),
+                'Annotation: '.($manifest['annotation'] ?? 'none'),
+                'Viewport: '.($manifest['viewport']['width'] ?? '?').'x'.($manifest['viewport']['height'] ?? '?'),
+                'Timestamp: '.($manifest['timestamp'] ?? 'unknown'),
             ]));
 
             $responses[] = Response::image($disk->get($file));
