@@ -1,0 +1,7 @@
+{
+  "name": "com.springloaded.turbo_feedback",
+  "description": "Turbo Feedback - saves browser screenshots to project workspace",
+  "path": "{{HOST_SCRIPT_PATH}}",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://{{EXTENSION_ID}}/"]
+}
