@@ -10,6 +10,7 @@ use Springloaded\Turbo\Commands\InstallCommand;
 use Springloaded\Turbo\Commands\PromptCommand;
 use Springloaded\Turbo\Commands\SkillsCommand;
 use Springloaded\Turbo\Commands\TurboCommand;
+use Springloaded\Turbo\Mcp\FeedbackServer;
 
 class TurboServiceProvider extends PackageServiceProvider
 {
@@ -31,5 +32,10 @@ class TurboServiceProvider extends PackageServiceProvider
                 InstallCommand::class,
                 SkillsCommand::class,
             ]);
+    }
+
+    public function packageBooted(): void
+    {
+        \Laravel\Mcp\Facades\Mcp::local('turbo-feedback', FeedbackServer::class);
     }
 }

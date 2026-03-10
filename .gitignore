@@ -32,6 +32,6 @@ settings.local.json
 phpunit.xml
 phpstan.neon
 testbench.yaml
-/docs/plans
+# /docs/plans
 /coverage
 .worktrees/

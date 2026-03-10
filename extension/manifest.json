@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Turbo Feedback",
+  "version": "1.0.0",
+  "description": "Capture browser screenshots and send them to Claude in a Turbo sandbox.",
+  "permissions": [
+    "activeTab",
+    "clipboardWrite",
+    "nativeMessaging"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F",
+        "mac": "Command+Shift+F"
+      },
+      "description": "Capture screenshot and copy feedback trigger"
+    }
+  }
+}

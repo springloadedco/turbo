@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
+  <title>Turbo Feedback</title>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Turbo Feedback</h1>
+      <div id="project-indicator" class="project-indicator">
+        <span class="dot"></span>
+        <span id="project-name">No project matched</span>
+      </div>
+    </header>
+
+    <section id="capture-section" class="section">
+      <label for="annotation">Annotation (optional)</label>
+      <textarea id="annotation" placeholder="Describe what you see or what needs to change..."></textarea>
+      <button id="capture-btn" class="btn-primary" disabled>Capture</button>
+    </section>
+
+    <div id="status" class="status hidden"></div>
+
+    <section id="settings-section" class="section settings">
+      <h2>Configured Projects</h2>
+      <ul id="project-list" class="project-list">
+        <li class="empty">No projects configured. Use a <code>turbo-feedback://</code> link to add one.</li>
+      </ul>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
