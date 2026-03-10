@@ -1,8 +1,8 @@
 # Sandbox npm Binary Corruption — Research Findings
 
 **Date:** 2026-03-10
-**Status:** Research complete, solution design pending
-**Branch:** `fix/node-modules-isolation`
+**Status:** Implemented (workaround deployed)
+**Branch:** `main`
 
 ## Problem
 
