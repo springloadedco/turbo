@@ -64,8 +64,14 @@ if [ -f "$WORKSPACE/package.json" ]; then
     # is portable and works everywhere.
     ESBUILD_VERSION=$(node -e "try{console.log(require('$DEPS_DIR/node_modules/esbuild/package.json').version)}catch(e){}" 2>/dev/null)
     if [ -n "$ESBUILD_VERSION" ]; then
-        echo "[setup-sandbox] Installing esbuild-wasm@$ESBUILD_VERSION (native binary incompatible with sandbox)"
-        cd "$DEPS_DIR" && npm install --no-save esbuild-wasm@"$ESBUILD_VERSION" 2>&1
+        # Check if esbuild-wasm is already installed at the right version
+        WASM_VERSION=$(node -e "try{console.log(require('$DEPS_DIR/node_modules/esbuild-wasm/package.json').version)}catch(e){}" 2>/dev/null)
+        if [ "$ESBUILD_VERSION" != "$WASM_VERSION" ]; then
+            echo "[setup-sandbox] Installing esbuild-wasm@$ESBUILD_VERSION (native binary incompatible with sandbox)"
+            cd "$DEPS_DIR" && npm install --no-save esbuild-wasm@"$ESBUILD_VERSION" 2>&1
+        else
+            echo "[setup-sandbox] esbuild-wasm@$WASM_VERSION already installed"
+        fi
     fi
 
     # Configure NODE_PATH + PATH (idempotent)
@@ -100,7 +106,7 @@ for ENTRY in "$@"; do
     # Add to /etc/hosts if not already present
     if ! grep -q "$HOSTNAME" /etc/hosts 2>/dev/null; then
         echo "[setup-sandbox] Adding host entry: $HOSTNAME -> $HOST_IP"
-        echo "$HOST_IP $HOSTNAME" >> /etc/hosts
+        echo "$HOST_IP $HOSTNAME" | sudo tee -a /etc/hosts > /dev/null
     fi
 done
 
