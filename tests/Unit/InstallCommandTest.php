@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\File;
 use Springloaded\Turbo\Commands\InstallCommand;
 use Springloaded\Turbo\Services\FeedbackLoopDetector;
@@ -45,7 +46,7 @@ function registerTestableInstallCommand(array $overrides = []): void
             $this->testOverrides = $overrides;
             parent::__construct(
                 app(SkillsService::class),
-                app(\Illuminate\Filesystem\Filesystem::class),
+                app(Filesystem::class),
                 app(FeedbackLoopDetector::class),
             );
         }
