@@ -14,6 +14,8 @@ set -euo pipefail
 WORKSPACE="${1:?Usage: setup-sandbox <workspace-path> [host:ip ...]}"
 shift
 
+echo "[setup-sandbox] Preparing sandbox for $WORKSPACE"
+
 # ------------------------------------------------------------------
 # 1. Node modules isolation
 # ------------------------------------------------------------------
@@ -39,6 +41,7 @@ if [ -f "$WORKSPACE/package.json" ]; then
     fi
 
     if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
+        echo "[setup-sandbox] Installing node dependencies to $DEPS_DIR"
         mkdir -p "$DEPS_DIR"
         cp "$WORKSPACE/package.json" "$DEPS_DIR/"
         if [ -n "$LOCK_FILE" ]; then
@@ -51,16 +54,39 @@ if [ -f "$WORKSPACE/package.json" ]; then
         npm install --ignore-scripts --no-audit --no-fund 2>&1
 
         echo "$CURRENT_HASH" > "$DEPS_DIR/.deps-hash"
+    else
+        echo "[setup-sandbox] Node dependencies up to date (hash match)"
+    fi
+
+    # Install esbuild-wasm if esbuild is present.
+    # The sandbox kernel's seccomp profile blocks mmap syscalls that Go's
+    # runtime needs, so esbuild's native binary panics. The WASM fallback
+    # is portable and works everywhere.
+    ESBUILD_VERSION=$(node -e "try{console.log(require('$DEPS_DIR/node_modules/esbuild/package.json').version)}catch(e){}" 2>/dev/null)
+    if [ -n "$ESBUILD_VERSION" ]; then
+        echo "[setup-sandbox] Installing esbuild-wasm@$ESBUILD_VERSION (native binary incompatible with sandbox)"
+        cd "$DEPS_DIR" && npm install --no-save esbuild-wasm@"$ESBUILD_VERSION" 2>&1
     fi
 
     # Configure NODE_PATH + PATH (idempotent)
     ENV_FILE="/etc/sandbox-persistent.sh"
     if ! grep -q "SANDBOX_NODE_DEPS" "$ENV_FILE" 2>/dev/null; then
+        echo "[setup-sandbox] Configuring NODE_PATH and PATH"
         echo "# Sandbox node_modules isolation (added by setup-sandbox)" >> "$ENV_FILE"
         echo "export SANDBOX_NODE_DEPS=$DEPS_DIR/node_modules" >> "$ENV_FILE"
         echo "export NODE_PATH=$DEPS_DIR/node_modules" >> "$ENV_FILE"
         echo 'export PATH="'"$DEPS_DIR"'/node_modules/.bin:$PATH"' >> "$ENV_FILE"
     fi
+
+    # Point esbuild at the WASM fallback (idempotent)
+    if [ -f "$DEPS_DIR/node_modules/esbuild-wasm/bin/esbuild" ]; then
+        if ! grep -q "ESBUILD_BINARY_PATH" "$ENV_FILE" 2>/dev/null; then
+            echo "[setup-sandbox] Setting ESBUILD_BINARY_PATH to WASM fallback"
+            echo "export ESBUILD_BINARY_PATH=$DEPS_DIR/node_modules/esbuild-wasm/bin/esbuild" >> "$ENV_FILE"
+        fi
+    fi
+else
+    echo "[setup-sandbox] No package.json found, skipping node setup"
 fi
 
 # ------------------------------------------------------------------
@@ -73,6 +99,9 @@ for ENTRY in "$@"; do
 
     # Add to /etc/hosts if not already present
     if ! grep -q "$HOSTNAME" /etc/hosts 2>/dev/null; then
+        echo "[setup-sandbox] Adding host entry: $HOSTNAME -> $HOST_IP"
         echo "$HOST_IP $HOSTNAME" >> /etc/hosts
     fi
 done
+
+echo "[setup-sandbox] Done"
