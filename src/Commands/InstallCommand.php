@@ -116,6 +116,9 @@ class InstallCommand extends Command
         // Step 5: Docker sandbox
         $this->offerDockerSetup();
 
+        // Step 6: Browser feedback extension
+        $this->offerFeedbackSetup();
+
         $this->newLine();
         $this->info('Turbo installation complete!');
 
@@ -560,5 +563,161 @@ class InstallCommand extends Command
             ['plugin', 'install', 'superpowers@superpowers-marketplace'],
             $outputCallback,
         );
+    }
+
+    /**
+     * Offer to set up the browser feedback extension.
+     */
+    protected function offerFeedbackSetup(): void
+    {
+        if (! $this->input->isInteractive()) {
+            return;
+        }
+
+        $wantsFeedback = confirm(
+            label: 'Set up browser feedback extension?',
+            hint: 'Installs native messaging host and registers the MCP server for screenshot feedback.',
+            default: true,
+        );
+
+        if (! $wantsFeedback) {
+            return;
+        }
+
+        $this->installNativeMessagingHost();
+        $this->registerMcpServer();
+        $this->configureExtensionProject();
+    }
+
+    /**
+     * Register the turbo-feedback MCP server in .claude/settings.json.
+     */
+    protected function registerMcpServer(): void
+    {
+        $settingsPath = base_path('.claude/settings.json');
+
+        $dir = dirname($settingsPath);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $settings = file_exists($settingsPath)
+            ? json_decode(file_get_contents($settingsPath), true)
+            : [];
+
+        $settings['mcpServers'] ??= [];
+        $settings['mcpServers']['turbo-feedback'] = [
+            'command' => 'php',
+            'args' => ['artisan', 'mcp:start', 'turbo-feedback'],
+        ];
+
+        file_put_contents(
+            $settingsPath,
+            json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
+        );
+
+        $this->components->info('Registered turbo-feedback MCP server.');
+    }
+
+    /**
+     * Install the Chrome native messaging host for browser feedback.
+     */
+    protected function installNativeMessagingHost(): void
+    {
+        $hostScriptSource = dirname(__DIR__, 2).'/resources/native-messaging/host.js';
+
+        // Determine Chrome native messaging host directory
+        $nativeHostDir = match (PHP_OS_FAMILY) {
+            'Darwin' => $_SERVER['HOME'].'/Library/Application Support/Google/Chrome/NativeMessagingHosts',
+            'Linux' => $_SERVER['HOME'].'/.config/google-chrome/NativeMessagingHosts',
+            default => null,
+        };
+
+        if (! $nativeHostDir) {
+            $this->components->warn('Native messaging host setup is only supported on macOS and Linux.');
+
+            return;
+        }
+
+        if (! is_dir($nativeHostDir)) {
+            mkdir($nativeHostDir, 0755, true);
+        }
+
+        // Copy host script
+        $hostScriptDest = $nativeHostDir.'/com.springloaded.turbo_feedback.js';
+        copy($hostScriptSource, $hostScriptDest);
+        chmod($hostScriptDest, 0755);
+
+        // Write manifest with resolved path
+        $manifest = json_decode(
+            file_get_contents(dirname(__DIR__, 2).'/resources/native-messaging/com.springloaded.turbo_feedback.json'),
+            true
+        );
+        $manifest['path'] = $hostScriptDest;
+        // Extension ID will be set after Chrome Web Store publish or during dev sideload
+        // For now, use a placeholder that the developer updates
+        $manifest['allowed_origins'] = ['chrome-extension://<EXTENSION_ID>/'];
+
+        file_put_contents(
+            $nativeHostDir.'/com.springloaded.turbo_feedback.json',
+            json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
+        );
+
+        $this->components->info('Native messaging host installed.');
+    }
+
+    /**
+     * Configure the browser extension with the project's URL and workspace path via deep link.
+     */
+    protected function configureExtensionProject(): void
+    {
+        // Read APP_URL from workspace .env
+        $envPath = base_path('.env');
+        $appUrl = null;
+
+        if (file_exists($envPath)) {
+            $env = file_get_contents($envPath);
+            if (preg_match('/^APP_URL=(.+)$/m', $env, $matches)) {
+                $appUrl = trim($matches[1], '"\'');
+            }
+        }
+
+        if (! $appUrl) {
+            $this->components->warn('APP_URL not found in .env — skipping extension configuration.');
+
+            return;
+        }
+
+        $host = parse_url($appUrl, PHP_URL_HOST);
+        $workspace = base_path();
+
+        $confirmed = confirm(
+            label: "Configure browser extension for {$host}?",
+            default: true,
+            hint: "Workspace: {$workspace}"
+        );
+
+        if (! $confirmed) {
+            return;
+        }
+
+        $deepLink = 'turbo-feedback://add-project?'.http_build_query([
+            'url' => $host,
+            'workspace' => $workspace,
+        ]);
+
+        // Try to open in browser
+        $opened = match (PHP_OS_FAMILY) {
+            'Darwin' => exec('open '.escapeshellarg($deepLink).' 2>/dev/null', result_code: $exitCode) !== false && $exitCode === 0,
+            'Linux' => exec('xdg-open '.escapeshellarg($deepLink).' 2>/dev/null', result_code: $exitCode) !== false && $exitCode === 0,
+            default => false,
+        };
+
+        if ($opened) {
+            $this->components->info('Opened browser to configure extension.');
+        }
+
+        $this->line("  Deep link: <comment>{$deepLink}</comment>");
+        $this->components->info("Copy the deep link above if the browser didn't open automatically.");
     }
 }
