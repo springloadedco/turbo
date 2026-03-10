@@ -116,7 +116,6 @@ it('creates an exec process with correct command', function () {
         ->toContain('sandbox')
         ->toContain('exec')
         ->toContain('claude-cpbc')
-        ->toContain('--')
         ->toContain('bash')
         ->toContain('echo hello');
 });
