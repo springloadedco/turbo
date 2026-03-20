@@ -3,8 +3,8 @@ FROM docker/sandbox-templates:claude-code
 USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php8.4-sqlite3 \
-  unzip ca-certificates \
+  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php8.4-sqlite3 php-mysql \
+  unzip ca-certificates chromium-browser \
   && rm -rf /var/lib/apt/lists/*
 
 # Node.js 22 (base image ships v20 which is too old for modern TypeScript)
@@ -16,12 +16,10 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
   && rm composer-setup.php
 
 # Agent Browser https://agent-browser.dev/installation
-# Store Playwright browsers in a shared location so they're accessible to the
-# agent user at runtime (install runs as root, but sandbox runs as agent).
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# Use system Chromium instead of downloading Chrome for Testing
+# (Chrome for Testing does not provide Linux ARM64 builds)
 RUN npm install -g agent-browser
-RUN agent-browser install --with-deps \
-  && chmod -R o+rx /opt/ms-playwright
+ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Configure gh as git credential helper so git clone works with GH_TOKEN at runtime
 RUN git config --system credential.https://github.com.helper '!/usr/bin/gh auth git-credential' \
