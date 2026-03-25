@@ -13,7 +13,7 @@ it('returns the correct dockerfile path', function () {
 it('uses static default image name', function () {
     $sandbox = app(DockerSandbox::class);
 
-    expect($sandbox->image)->toBe('turbo');
+    expect($sandbox->image)->toBe(config('turbo.docker.image'));
 });
 
 it('derives sandbox name from workspace path', function () {
