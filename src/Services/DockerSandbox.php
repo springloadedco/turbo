@@ -169,6 +169,7 @@ class DockerSandbox
         return $this->process([
             'sbx', 'create',
             '--template', $this->image,
+            '--pull-template', 'never',
             '--name', $this->sandboxName(),
             'claude',
             $this->workspace,
