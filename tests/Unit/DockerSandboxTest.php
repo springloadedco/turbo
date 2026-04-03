@@ -32,16 +32,14 @@ it('creates a create process with correct command', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('create')
-        ->toContain('-t')
+        ->toContain('--template')
         ->toContain('turbo')
         ->toContain('--name')
         ->toContain('claude-cpbc')
         ->toContain('claude')
-        ->toContain('/Users/dev/Sites/cpbc')
-        ->not->toContain('--load-local-template');
+        ->toContain('/Users/dev/Sites/cpbc');
 });
 
 it('creates a remove process with correct command', function () {
@@ -52,8 +50,7 @@ it('creates a remove process with correct command', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('rm')
         ->toContain('claude-cpbc');
 });
@@ -113,8 +110,7 @@ it('creates an exec process with correct command', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('exec')
         ->toContain('claude-cpbc')
         ->toContain('bash')
@@ -132,11 +128,9 @@ it('interactiveProcess ensures sandbox exists and returns simple run command', f
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('run')
         ->toContain('claude-cpbc')
-        ->not->toContain('--load-local-template')
         ->not->toContain('create');
 });
 
@@ -151,14 +145,12 @@ it('promptProcess ensures sandbox exists and returns simple run command', functi
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('run')
         ->toContain('claude-cpbc')
         ->toContain('--')
         ->toContain('-p')
         ->toContain('Hello Claude')
-        ->not->toContain('--load-local-template')
         ->not->toContain('create');
 });
 
@@ -252,12 +244,10 @@ it('creates proxy bypass process for a host on port 80', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
+        ->toContain('policy')
+        ->toContain('allow')
         ->toContain('network')
-        ->toContain('proxy')
-        ->toContain('claude-cpbc')
-        ->toContain('--bypass-host')
         ->toContain('app.test:80');
 });
 
@@ -283,8 +273,7 @@ it('creates prepareSandboxProcess with workspace and host entries', function () 
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('exec')
         ->toContain('setup-sandbox')
         ->toContain('/Users/dev/Sites/cpbc')

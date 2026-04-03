@@ -63,9 +63,9 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to bypass the sandbox proxy for a host.
+     * Create a process to allow network access for a host.
      *
-     * Restricts bypass to port 80 by default for minimal attack surface.
+     * Restricts to port 80 by default for minimal attack surface.
      * Hosts with explicit ports (e.g. 'api.test:8080') are preserved.
      */
     public function proxyBypassProcess(string $host): Process
@@ -75,16 +75,14 @@ class DockerSandbox
         }
 
         return $this->process([
-            'docker', 'sandbox', 'network', 'proxy',
-            $this->sandboxName(),
-            '--bypass-host', $host,
+            'sbx', 'policy', 'allow', 'network', $host,
         ]);
     }
 
     /**
      * Resolve the host machine's IP address from inside the sandbox.
      *
-     * Uses `docker sandbox exec` to resolve host.docker.internal.
+     * Uses `sbx exec` to resolve host.docker.internal.
      */
     public function resolveHostIp(): ?string
     {
@@ -149,7 +147,7 @@ class DockerSandbox
      */
     public function sandboxExists(): bool
     {
-        $process = new Process(['docker', 'sandbox', 'ls', '-q']);
+        $process = new Process(['sbx', 'ls', '-q']);
         $process->run();
 
         if (! $process->isSuccessful()) {
@@ -169,8 +167,8 @@ class DockerSandbox
     public function createProcess(): Process
     {
         return $this->process([
-            'docker', 'sandbox', 'create',
-            '-t', $this->image,
+            'sbx', 'create',
+            '--template', $this->image,
             '--name', $this->sandboxName(),
             'claude',
             $this->workspace,
@@ -183,7 +181,7 @@ class DockerSandbox
     public function removeProcess(): Process
     {
         return $this->process([
-            'docker', 'sandbox', 'rm',
+            'sbx', 'rm',
             $this->sandboxName(),
         ]);
     }
@@ -218,12 +216,12 @@ class DockerSandbox
     }
 
     /**
-     * Execute a command inside the sandbox via docker sandbox exec.
+     * Execute a command inside the sandbox via sbx exec.
      */
     public function execProcess(array $command): Process
     {
         return $this->process(array_merge([
-            'docker', 'sandbox', 'exec',
+            'sbx', 'exec',
             $this->sandboxName(),
         ], $command));
     }
@@ -239,7 +237,7 @@ class DockerSandbox
         $this->prepareSandbox();
 
         $command = [
-            'docker', 'sandbox', 'run',
+            'sbx', 'run',
             $this->sandboxName(),
         ];
 
@@ -260,7 +258,7 @@ class DockerSandbox
         $this->prepareSandbox();
 
         return $this->ptyProcess([
-            'docker', 'sandbox', 'run',
+            'sbx', 'run',
             $this->sandboxName(),
             '--',
             '-p', $prompt,
@@ -297,7 +295,7 @@ class DockerSandbox
         $this->prepareSandbox();
 
         $command = array_merge([
-            'docker', 'sandbox', 'run',
+            'sbx', 'run',
             $this->sandboxName(),
             '--',
         ], $claudeArgs);
