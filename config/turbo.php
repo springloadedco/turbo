@@ -26,7 +26,7 @@ return [
         |--------------------------------------------------------------------------
         |
         | The tag used when building the sandbox image and the template name
-        | passed to `docker sandbox run`.
+        | passed to `sbx create --template`.
         |
         */
         'image' => env('TURBO_DOCKER_IMAGE', 'turbo'),

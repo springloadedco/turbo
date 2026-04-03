@@ -1,7 +1,7 @@
 #!/bin/bash
 # Prepare the sandbox environment for development.
 # Baked into the image at /usr/local/bin/setup-sandbox.
-# Run via `docker sandbox exec` before each Claude session.
+# Run via `sbx exec` before each Claude session.
 #
 # Usage: setup-sandbox <workspace-path> [host:ip host:ip ...]
 #

@@ -39,7 +39,7 @@ Other superpowers activate automatically when relevant — test-driven developme
 - PHP 8.4+
 - Laravel 11 or 12
 - Node.js / npm (required for `npx skills`)
-- Docker Desktop 4.61+ (required for sandbox commands)
+- sbx CLI (required for sandbox commands -- `brew install docker/tap/sbx`)
 
 ## Installation
 

@@ -48,92 +48,90 @@ The `.ai/skills/` directory contains Laravel development patterns that get publi
 
 Uses Pest with Orchestra Testbench. Run `composer test`.
 
-### Docker Sandbox Commands Reference
+### sbx CLI Commands Reference
+
+The `sbx` CLI (formerly `docker sandbox`) is a standalone tool for managing sandboxes.
+Install: `brew install docker/tap/sbx`
 
 #### Main Commands
 
-**`docker sandbox create [OPTIONS] AGENT WORKSPACE`**
+**`sbx create [OPTIONS] AGENT WORKSPACE`**
 - Create a sandbox with access to a host workspace for an agent
-- Available agents: `claude`, `cagent`, `codex`, `copilot`, `gemini`, `kiro`
+- Available agents: `claude`, `codex`, `copilot`, `docker-agent`, `gemini`, `kiro`, `opencode`, `shell`
 - Workspace path is required and exposed inside sandbox at same path as host
 - Options:
   - `--name string` - Custom sandbox name (default: `<agent>-<workdir>`)
-  - `-t, --template string` - Custom container image for sandbox
-  - `--load-local-template` - Load locally built template image
-  - `-q, --quiet` - Suppress verbose output
-  - `-D, --debug` - Enable debug logging
+  - `--template string` - Custom container image for sandbox
+  - `--pull-template string` - Image pull policy (`missing`, `always`, `never`)
 
-**`docker sandbox run SANDBOX [-- AGENT_ARGS...] | AGENT WORKSPACE [-- AGENT_ARGS...]`**
+**`sbx run <AGENT> [WORKSPACE] [-- AGENT_ARGS...] | SANDBOX [-- AGENT_ARGS...]`**
 - Run an agent in a sandbox; creates sandbox if it doesn't exist
+- Workspace defaults to current directory if omitted
 - Pass agent arguments after `--` separator
 - Examples:
-  - `docker sandbox run claude .` - Create/run sandbox with claude in current dir
-  - `docker sandbox run existing-sandbox` - Run existing sandbox
-  - `docker sandbox run claude . -- -p "What version are you running?"` - Run with agent args
-- Options: same as `create` command
+  - `sbx run claude` - Create/run sandbox with claude in current dir
+  - `sbx run existing-sandbox` - Run existing sandbox
+  - `sbx run claude . -- -p "What version are you running?"` - Run with agent args
+  - `sbx run --branch my-feature claude` - Run on an isolated git worktree branch
+- Options: same as `create` command, plus `--branch`
 
-**`docker sandbox exec [OPTIONS] SANDBOX COMMAND [ARG...]`**
+**`sbx exec [OPTIONS] SANDBOX COMMAND [ARG...]`**
 - Execute a command in an existing sandbox
 - Options:
   - `-i, --interactive` - Keep STDIN open
   - `-t, --tty` - Allocate a pseudo-TTY
-  - `-d, --detach` - Run in background
-  - `-e, --env stringArray` - Set environment variables
-  - `--env-file stringArray` - Read environment variables from file
-  - `-u, --user string` - Username or UID
-  - `-w, --workdir string` - Working directory inside container
-  - `--privileged` - Give extended privileges
 
-**`docker sandbox ls [OPTIONS]`**
-- List all VMs and their sandboxes
-- Aliases: `list`
+**`sbx ls`**
+- List all sandboxes with status
 - Options:
-  - `-q, --quiet` - Only display VM names
-  - `--json` - Output in JSON format
-  - `--no-trunc` - Don't truncate output
+  - `-q, --quiet` - Only display sandbox names
 
-**`docker sandbox rm SANDBOX [SANDBOX...]`**
+**`sbx rm SANDBOX [SANDBOX...]`**
 - Remove one or more sandboxes and all associated resources
-- Aliases: `remove`
+- Options:
+  - `--all` - Remove all sandboxes
 
-**`docker sandbox stop SANDBOX [SANDBOX...]`**
+**`sbx stop SANDBOX [SANDBOX...]`**
 - Stop one or more sandboxes without removing them
 - Sandboxes can be restarted later
 
-**`docker sandbox reset [OPTIONS]`**
-- Reset all VM sandboxes and permanently delete all VM data
-- ⚠️ WARNING: Destructive operation - stops all VMs, deletes state, clears registries
+**`sbx reset [OPTIONS]`**
+- Reset all sandboxes and permanently delete all data
 - Options:
-  - `-f, --force` - Skip confirmation prompt
+  - `--preserve-secrets` - Keep stored secrets
 
-**`docker sandbox save SANDBOX TAG [OPTIONS]`**
+**`sbx save SANDBOX TAG [OPTIONS]`**
 - Save a snapshot of sandbox as a template
 - Examples:
-  - `docker sandbox save my-sandbox myimage:v1.0` - Load into host Docker
-  - `docker sandbox save my-sandbox myimage:v1.0 --output /tmp/myimage.tar` - Save to file
+  - `sbx save my-sandbox myimage:v1.0` - Load into host Docker
+  - `sbx save my-sandbox myimage:v1.0 --output /tmp/myimage.tar` - Save to file
 - Options:
   - `-o, --output string` - Save to tar file instead of loading into Docker
 
-**`docker sandbox network log [OPTIONS]`**
-- Show network logs
-- Options:
-  - `--json` - Output in JSON format
-  - `--limit int` - Maximum number of log entries to show
-  - `-q, --quiet` - Only display log entries
+**`sbx policy allow network <hosts>`**
+- Allow network access to specific domains
+- Examples:
+  - `sbx policy allow network registry.npmjs.org`
+  - `sbx policy allow network "*.example.com:443,example.com:443"`
+  - `sbx policy allow network localhost:11434` - Allow access to host services
 
-**`docker sandbox network proxy <sandbox> [OPTIONS]`**
-- Manage proxy configuration for a sandbox
-- Options:
-  - `--policy allow|deny` - Set default policy
-  - `--allow-host string` - Permit access to domain/IP (can be specified multiple times)
-  - `--allow-cidr string` - Remove IP range from block/bypass lists (can be specified multiple times)
-  - `--block-host string` - Block access to domain/IP (can be specified multiple times)
-  - `--block-cidr string` - Block access to IP range in CIDR notation (can be specified multiple times)
-  - `--bypass-host string` - Bypass proxy for domain/IP (can be specified multiple times)
-  - `--bypass-cidr string` - Bypass proxy for IP range in CIDR notation (can be specified multiple times)
+**`sbx policy ls`**
+- Display active network access rules
 
-**`docker sandbox version`**
-- Show sandbox version information
+**`sbx policy reset`**
+- Restore default network policy
+
+**`sbx secret set [OPTIONS] <service>`**
+- Store credentials in OS keychain for injection into sandboxes
+- Examples:
+  - `sbx secret set -g anthropic` - Set Anthropic API key
+  - `sbx secret set -g github -t "$(gh auth token)"` - Set GitHub token
+
+**`sbx login`**
+- Docker OAuth sign-in via browser
+
+**`sbx version`**
+- Show version information
 
 ### Docker Sandbox Patterns
 
@@ -142,8 +140,8 @@ Uses Pest with Orchestra Testbench. Run `composer test`.
 - `setPty(true)` — creates pseudo-terminal for output capture. Use for **non-interactive** command execution (e.g. `turbo:prompt`, `runCommand`)
 - Check `isTtySupported()` before `setTty()`, `isPtySupported()` before `setPty()`
 
-#### Docker Sandbox Commands
-- `docker sandbox run <name> -- <args>` — args after `--` go to `claude` CLI
+#### sbx Commands
+- `sbx run <name> -- <args>` — args after `--` go to `claude` CLI
 - `-p "prompt"` sends a **prompt** to Claude (natural language)
 - `plugin marketplace add ...` is a **CLI subcommand**, not a prompt — pass directly without `-p`
 - Don't use try-then-fallback pattern for sandbox existence — command failures inside an existing sandbox are indistinguishable from "sandbox not found." Use `sandboxExists()` check instead.
