@@ -169,7 +169,6 @@ class DockerSandbox
         return $this->process([
             'sbx', 'create',
             '--template', $this->image,
-            '--pull-template', 'never',
             '--name', $this->sandboxName(),
             'claude',
             $this->workspace,
@@ -203,13 +202,18 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to build the sandbox image from the Dockerfile.
+     * Create a process to build and push the sandbox image from the Dockerfile.
+     *
+     * sbx uses a separate Docker daemon that pulls templates from OCI registries
+     * only — it does not share the local Docker daemon's image store. The image
+     * must be pushed to a registry so sbx can pull it at sandbox creation time.
      */
     public function buildProcess(): Process
     {
         return $this->process([
             'docker', 'build',
             '--progress=quiet',
+            '--push',
             '-t', $this->image,
             '-f', $this->dockerfile,
             dirname($this->dockerfile),
