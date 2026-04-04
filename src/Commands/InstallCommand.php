@@ -408,10 +408,11 @@ class InstallCommand extends Command
      */
     protected function configureDockerImage(): void
     {
-        $default = 'turbo/'.basename(base_path());
+        $default = 'docker.io/springloadedco/turbo:php8.4';
 
         $image = text(
             label: 'Docker image name',
+            hint: 'Press enter to use the published image. To extend it, enter your own registry image (e.g. docker.io/my-org/my-sandbox:latest).',
             default: $default,
             required: true,
         );
@@ -419,6 +420,20 @@ class InstallCommand extends Command
         $this->writeDockerImageToConfig($image);
 
         config(['turbo.docker.image' => $image]);
+    }
+
+    /**
+     * Check if the configured image is the published springloadedco/turbo image.
+     *
+     * When using the published image, turbo:build is not needed since sbx
+     * pulls it directly from Docker Hub.
+     */
+    protected function isPublishedImage(): bool
+    {
+        $image = config('turbo.docker.image', '');
+
+        return str_starts_with($image, 'docker.io/springloadedco/turbo:')
+            || str_starts_with($image, 'springloadedco/turbo:');
     }
 
     /**
@@ -453,7 +468,7 @@ class InstallCommand extends Command
         }
 
         $wantsDocker = confirm(
-            label: 'Set up Docker sandbox? (builds the Turbo sandbox image)',
+            label: 'Set up Docker sandbox?',
             default: true,
         );
 
@@ -464,14 +479,16 @@ class InstallCommand extends Command
         // Configure image name
         $this->configureDockerImage();
 
-        // Step 1: Build the image
-        $exitCode = $this->call('turbo:build');
+        // Only build if using a custom (non-published) image
+        if (! $this->isPublishedImage()) {
+            $exitCode = $this->call('turbo:build');
 
-        if ($exitCode !== self::SUCCESS) {
-            return;
+            if ($exitCode !== self::SUCCESS) {
+                return;
+            }
         }
 
-        // Step 2: Create the sandbox
+        // Create the sandbox
         $sandbox = app(DockerSandbox::class);
 
         if ($sandbox->sandboxExists()) {
@@ -507,10 +524,7 @@ class InstallCommand extends Command
             return;
         }
 
-        // Step 3: Authenticate Claude inside the sandbox
-        // $this->authenticateSandbox($sandbox);
-
-        // Step 4: Install plugins
+        // Install plugins
         $this->installSandboxPlugins($sandbox);
     }
 
