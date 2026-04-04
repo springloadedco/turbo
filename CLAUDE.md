@@ -62,7 +62,8 @@ Install: `brew install docker/tap/sbx`
 - Options:
   - `--name string` - Custom sandbox name (default: `<agent>-<workdir>`)
   - `--template string` - Custom container image for sandbox
-  - `--pull-template string` - Image pull policy (`missing`, `always`, `never`)
+  - `--branch string` - Create a Git worktree on the given branch
+  - `-m, --memory string` - Memory limit (e.g., `1024m`, `8g`)
 
 **`sbx run <AGENT> [WORKSPACE] [-- AGENT_ARGS...] | SANDBOX [-- AGENT_ARGS...]`**
 - Run an agent in a sandbox; creates sandbox if it doesn't exist
@@ -134,6 +135,12 @@ Install: `brew install docker/tap/sbx`
 - Show version information
 
 ### Docker Sandbox Patterns
+
+#### Image Registry Requirement
+- sbx uses a separate Docker daemon that does NOT share the local image store
+- Templates must be pulled from an OCI registry (Docker Hub, GHCR, etc.)
+- Default image: `docker.io/springloadedco/turbo:php8.4` — published via CI
+- `turbo:build` is only needed for custom images extending the published one
 
 #### Symfony Process: TTY vs PTY
 - `setTty(true)` — connects real terminal stdin/stdout/stderr directly. Use for **interactive** sessions (e.g. `turbo:claude`)
