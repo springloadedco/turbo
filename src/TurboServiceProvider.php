@@ -6,11 +6,16 @@ use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Springloaded\Turbo\Commands\ClaudeCommand;
 use Springloaded\Turbo\Commands\DockerBuildCommand;
+use Springloaded\Turbo\Commands\DoctorCommand;
+use Springloaded\Turbo\Commands\ExecCommand;
 use Springloaded\Turbo\Commands\InstallCommand;
+use Springloaded\Turbo\Commands\PortsCommand;
 use Springloaded\Turbo\Commands\PrepareCommand;
 use Springloaded\Turbo\Commands\PromptCommand;
+use Springloaded\Turbo\Commands\RemoveCommand;
 use Springloaded\Turbo\Commands\SkillsCommand;
-use Springloaded\Turbo\Commands\TurboCommand;
+use Springloaded\Turbo\Commands\StartCommand;
+use Springloaded\Turbo\Commands\StopCommand;
 
 class TurboServiceProvider extends PackageServiceProvider
 {
@@ -25,12 +30,17 @@ class TurboServiceProvider extends PackageServiceProvider
             ->name('turbo')
             ->hasConfigFile()
             ->hasCommands([
-                TurboCommand::class,
+                InstallCommand::class,
                 DockerBuildCommand::class,
                 ClaudeCommand::class,
                 PromptCommand::class,
+                ExecCommand::class,
                 PrepareCommand::class,
-                InstallCommand::class,
+                PortsCommand::class,
+                StartCommand::class,
+                StopCommand::class,
+                RemoveCommand::class,
+                DoctorCommand::class,
                 SkillsCommand::class,
             ]);
     }

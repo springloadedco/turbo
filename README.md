@@ -155,9 +155,16 @@ The config also includes Docker sandbox settings:
 |---------|-------------|
 | `turbo:install` | Set up Turbo for your project (see [Getting Started](#getting-started)) |
 | `turbo:skills` | Re-publish Turbo skills after a package update |
-| `turbo:build` | Build the Docker sandbox image |
-| `turbo:claude` | Start an interactive Claude session in the Docker sandbox |
-| `turbo:prompt {prompt}` | Run Claude with a one-off prompt in the Docker sandbox |
+| `turbo:build` | Build and push a custom Docker sandbox image |
+| `turbo:claude` | Start an interactive Claude session in the sandbox |
+| `turbo:prompt {prompt}` | Run Claude with a one-off prompt in the sandbox |
+| `turbo:exec {command}` | Execute a command inside the sandbox |
+| `turbo:prepare` | Configure sandbox host access (/etc/hosts + policy) |
+| `turbo:ports` | List, publish, or unpublish sandbox ports |
+| `turbo:start` | Start the sandbox (without attaching) |
+| `turbo:stop` | Stop the sandbox (preserving state) |
+| `turbo:rm` | Remove the sandbox and all its state |
+| `turbo:doctor` | Run a health check on the sandbox environment |
 
 ### Docker Sandbox
 

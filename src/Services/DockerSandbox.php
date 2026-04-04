@@ -187,6 +187,54 @@ class DockerSandbox
     }
 
     /**
+     * Create a process to stop the sandbox (preserving state).
+     */
+    public function stopProcess(): Process
+    {
+        return $this->process([
+            'sbx', 'stop',
+            $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Create a process to list published ports for the sandbox.
+     */
+    public function portsProcess(): Process
+    {
+        return $this->process([
+            'sbx', 'ports',
+            $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Create a process to publish a port spec.
+     *
+     * Spec format: [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]
+     */
+    public function publishPortProcess(string $spec): Process
+    {
+        return $this->process([
+            'sbx', 'ports',
+            $this->sandboxName(),
+            '--publish', $spec,
+        ]);
+    }
+
+    /**
+     * Create a process to unpublish a port spec.
+     */
+    public function unpublishPortProcess(string $spec): Process
+    {
+        return $this->process([
+            'sbx', 'ports',
+            $this->sandboxName(),
+            '--unpublish', $spec,
+        ]);
+    }
+
+    /**
      * Ensure the sandbox exists, creating it if necessary.
      */
     public function ensureSandboxExists(): bool
@@ -254,6 +302,31 @@ class DockerSandbox
             $args = array_merge($args, $claudeArgs);
         }
 
+        $this->execSbx($args);
+    }
+
+    /**
+     * Execute an interactive command inside the sandbox via sbx exec -it.
+     *
+     * Uses pcntl_exec for proper TTY handoff (same reason as runInteractive).
+     * This method does not return — the PHP process becomes the sbx process.
+     *
+     * @param  array<string>  $command
+     */
+    public function execInteractive(array $command): never
+    {
+        $args = ['exec', '-it', $this->sandboxName(), ...$command];
+
+        $this->execSbx($args);
+    }
+
+    /**
+     * Replace the current PHP process with sbx.
+     *
+     * @param  array<string>  $args
+     */
+    protected function execSbx(array $args): never
+    {
         $sbxPath = trim((string) shell_exec('command -v sbx')) ?: 'sbx';
 
         pcntl_exec($sbxPath, $args);

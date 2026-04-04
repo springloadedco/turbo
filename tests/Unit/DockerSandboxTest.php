@@ -55,6 +55,64 @@ it('creates a remove process with correct command', function () {
         ->toContain('claude-cpbc');
 });
 
+it('creates a stop process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->stopProcess();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('stop')
+        ->toContain('claude-cpbc');
+});
+
+it('creates a ports list process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->portsProcess();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->not->toContain('--publish')
+        ->not->toContain('--unpublish');
+});
+
+it('creates a publish port process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->publishPortProcess('8080:8000');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->toContain('--publish')
+        ->toContain('8080:8000');
+});
+
+it('creates an unpublish port process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->unpublishPortProcess('8080:8000');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->toContain('--unpublish')
+        ->toContain('8080:8000');
+});
+
 it('ensureSandboxExists returns true when sandbox already exists', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
