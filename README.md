@@ -137,7 +137,7 @@ The config also includes Docker sandbox settings:
 
 ```php
 'docker' => [
-    'image'      => env('TURBO_DOCKER_IMAGE', 'turbo'),
+    'image'      => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:php8.4'),
     'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
     'workspace'  => env('TURBO_DOCKER_WORKSPACE', base_path()),
 ],
@@ -145,7 +145,7 @@ The config also includes Docker sandbox settings:
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `image` | Docker image tag used for build and run | `turbo` |
+| `image` | Fully-qualified OCI registry image for the sandbox template | `docker.io/springloadedco/turbo:php8.4` |
 | `dockerfile` | Path to a custom Dockerfile (falls back to the one shipped with Turbo) | `null` |
 | `workspace` | Local directory mounted into the sandbox | `base_path()` |
 
@@ -161,9 +161,36 @@ The config also includes Docker sandbox settings:
 
 ### Docker Sandbox
 
-Turbo ships a Dockerfile based on `docker/sandbox-templates:claude-code` with PHP 8.4, common extensions, and Composer pre-installed.
+Turbo publishes a pre-built sandbox image to Docker Hub based on `docker/sandbox-templates:claude-code` with PHP, common extensions, Composer, Node.js 22, and Chromium pre-installed.
 
-**Build the image:**
+**Available tags:**
+
+| Tag | PHP Version |
+|-----|-------------|
+| `springloadedco/turbo:php8.5` | PHP 8.5 (also `latest`) |
+| `springloadedco/turbo:php8.4` | PHP 8.4 (default) |
+| `springloadedco/turbo:php8.3` | PHP 8.3 |
+
+Most users don't need to build anything — `turbo:install` uses the published image by default and sbx pulls it from Docker Hub.
+
+**Extending the image:**
+
+If your project needs additional tools, create a Dockerfile in your project root:
+
+```dockerfile
+FROM springloadedco/turbo:php8.4
+USER root
+RUN apt-get update && apt-get install -y redis-tools
+USER agent
+```
+
+Set your own registry image in `.env`:
+
+```
+TURBO_DOCKER_IMAGE=docker.io/my-org/my-sandbox:latest
+```
+
+Then build and push:
 
 ```bash
 php artisan turbo:build
