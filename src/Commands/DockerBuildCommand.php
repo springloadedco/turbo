@@ -13,7 +13,7 @@ class DockerBuildCommand extends Command
 
     protected $signature = 'turbo:build';
 
-    protected $description = 'Build the Turbo Docker sandbox image';
+    protected $description = 'Build and push a custom Docker sandbox image';
 
     public function handle(DockerSandbox $sandbox): int
     {
