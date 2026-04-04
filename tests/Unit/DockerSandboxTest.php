@@ -3,13 +3,6 @@
 use Springloaded\Turbo\Services\DockerSandbox;
 use Symfony\Component\Process\Process;
 
-it('returns the correct dockerfile path', function () {
-    $sandbox = app(DockerSandbox::class);
-
-    expect(basename($sandbox->dockerfile))->toBe('Dockerfile');
-    expect(file_exists($sandbox->dockerfile))->toBeTrue();
-});
-
 it('uses static default image name', function () {
     $sandbox = app(DockerSandbox::class);
 
@@ -143,22 +136,6 @@ it('ensureSandboxExists returns false when creation fails', function () {
     $sandbox->shouldReceive('createProcess')->andReturn($mockProcess);
 
     expect($sandbox->ensureSandboxExists())->toBeFalse();
-});
-
-it('creates a build process with correct command', function () {
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->buildProcess();
-
-    $commandLine = $process->getCommandLine();
-    expect($commandLine)
-        ->toContain('docker')
-        ->toContain('build')
-        ->toContain('--progress=quiet')
-        ->toContain('--push')
-        ->toContain('-t')
-        ->toContain('turbo')
-        ->toContain('-f')
-        ->toContain('Dockerfile');
 });
 
 it('creates an exec process with correct command', function () {

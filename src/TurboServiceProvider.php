@@ -5,7 +5,6 @@ namespace Springloaded\Turbo;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Springloaded\Turbo\Commands\ClaudeCommand;
-use Springloaded\Turbo\Commands\DockerBuildCommand;
 use Springloaded\Turbo\Commands\DoctorCommand;
 use Springloaded\Turbo\Commands\ExecCommand;
 use Springloaded\Turbo\Commands\InstallCommand;
@@ -31,7 +30,6 @@ class TurboServiceProvider extends PackageServiceProvider
             ->hasConfigFile()
             ->hasCommands([
                 InstallCommand::class,
-                DockerBuildCommand::class,
                 ClaudeCommand::class,
                 PromptCommand::class,
                 ExecCommand::class,

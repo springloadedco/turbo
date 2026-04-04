@@ -39,20 +39,6 @@ return [
 
         /*
         |--------------------------------------------------------------------------
-        | Dockerfile Path
-        |--------------------------------------------------------------------------
-        |
-        | Path to the Dockerfile used to build the sandbox image. The directory
-        | containing the Dockerfile is used as the build context.
-        |
-        | By default, this uses the Dockerfile from the Turbo package. You can
-        | override this to use a custom Dockerfile in your application.
-        |
-        */
-        'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
-
-        /*
-        |--------------------------------------------------------------------------
         | Workspace Path
         |--------------------------------------------------------------------------
         |

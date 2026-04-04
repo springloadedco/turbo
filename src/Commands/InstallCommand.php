@@ -479,11 +479,12 @@ class InstallCommand extends Command
         // Configure image name
         $this->configureDockerImage();
 
-        // Only build if using a custom (non-published) image
         if (! $this->isPublishedImage()) {
-            $exitCode = $this->call('turbo:build');
+            $this->warn('Custom image selected. Make sure it is built and pushed to your registry before continuing.');
+            $this->line('  docker build --push -t '.config('turbo.docker.image').' .');
+            $this->newLine();
 
-            if ($exitCode !== self::SUCCESS) {
+            if (! confirm(label: 'Image is pushed and ready?', default: true)) {
                 return;
             }
         }

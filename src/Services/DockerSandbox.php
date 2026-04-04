@@ -9,15 +9,11 @@ class DockerSandbox
 {
     public string $image;
 
-    public string $dockerfile;
-
     public string $workspace;
 
     public function __construct()
     {
         $this->image = config('turbo.docker.image');
-        $this->dockerfile = config('turbo.docker.dockerfile')
-            ?? $this->getPackageDockerfilePath();
         $this->workspace = config('turbo.docker.workspace');
     }
 
@@ -250,25 +246,6 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to build and push the sandbox image from the Dockerfile.
-     *
-     * sbx uses a separate Docker daemon that pulls templates from OCI registries
-     * only — it does not share the local Docker daemon's image store. The image
-     * must be pushed to a registry so sbx can pull it at sandbox creation time.
-     */
-    public function buildProcess(): Process
-    {
-        return $this->process([
-            'docker', 'build',
-            '--progress=quiet',
-            '--push',
-            '-t', $this->image,
-            '-f', $this->dockerfile,
-            dirname($this->dockerfile),
-        ]);
-    }
-
-    /**
      * Execute a command inside the sandbox via sbx exec.
      */
     public function execProcess(array $command): Process
@@ -388,14 +365,6 @@ class DockerSandbox
         $process->run($output);
 
         return $process;
-    }
-
-    /**
-     * Get the path to the Dockerfile in the package.
-     */
-    protected function getPackageDockerfilePath(): string
-    {
-        return dirname(__DIR__, 2).'/Dockerfile';
     }
 
     /**

@@ -155,7 +155,6 @@ The config also includes Docker sandbox settings:
 |---------|-------------|
 | `turbo:install` | Set up Turbo for your project (see [Getting Started](#getting-started)) |
 | `turbo:skills` | Re-publish Turbo skills after a package update |
-| `turbo:build` | Build and push a custom Docker sandbox image |
 | `turbo:claude` | Start an interactive Claude session in the sandbox |
 | `turbo:prompt {prompt}` | Run Claude with a one-off prompt in the sandbox |
 | `turbo:exec {command}` | Execute a command inside the sandbox |
@@ -189,10 +188,10 @@ Set your own registry image in `.env`:
 TURBO_DOCKER_IMAGE=docker.io/my-org/my-sandbox:latest
 ```
 
-Then build and push:
+Then build and push with Docker:
 
 ```bash
-php artisan turbo:build
+docker build --push -t docker.io/my-org/my-sandbox:latest .
 ```
 
 **Start an interactive Claude session:**
@@ -217,7 +216,6 @@ When working on Turbo itself, use `bin/turbo` to run commands via Orchestra Test
 
 ```bash
 bin/turbo install    # turbo:install
-bin/turbo build      # turbo:build
 bin/turbo claude     # turbo:claude
 bin/turbo prompt "…" # turbo:prompt
 ```

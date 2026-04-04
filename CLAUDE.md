@@ -22,7 +22,6 @@ This is a Laravel package that provides AI guidelines, skills, and tools for Spr
 This package registers artisan commands in `src/Commands/`. In a consumer Laravel project, they are called with `php artisan <command>`. When developing this package, use `bin/turbo` which wraps Orchestra Testbench:
 
 - `bin/turbo install` - Install/configure Turbo in a project
-- `bin/turbo build` - Build + push a custom Docker sandbox image
 - `bin/turbo claude` - Launch interactive Claude session in a sandbox
 - `bin/turbo prompt {prompt}` - Send a one-shot prompt to Claude in a sandbox
 - `bin/turbo exec {command}` - Execute arbitrary commands inside the sandbox
@@ -205,7 +204,7 @@ For **custom hostnames** (e.g. Laravel Herd/Valet routing `myapp.test` → host)
 - sbx uses a separate Docker daemon that does NOT share the local image store
 - Templates must be pulled from an OCI registry (Docker Hub, GHCR, etc.)
 - Default image: `docker.io/springloadedco/turbo:latest` — published via CI
-- `turbo:build` is only needed for custom images extending the published one
+- For custom images, build and push with Docker directly: `docker build --push -t <your-image> .`
 
 #### Symfony Process: TTY vs PTY vs pcntl_exec
 - `pcntl_exec()` — replaces the PHP process with the child. Use for **fully-interactive TUIs** (Claude Code, bash) because Symfony's `setTty(true)` does NOT properly allocate a pty for them (causes exit 137 SIGKILL after welcome screen renders). See `DockerSandbox::runInteractive()`.
