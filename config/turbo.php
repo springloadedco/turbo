@@ -25,11 +25,17 @@ return [
         | Image Name
         |--------------------------------------------------------------------------
         |
-        | The tag used when building the sandbox image and the template name
-        | passed to `sbx create --template`.
+        | The fully-qualified OCI registry image passed to `sbx create --template`.
+        | sbx pulls templates from registries — the local Docker image store is not
+        | shared with the sbx daemon.
+        |
+        | The default uses the published springloadedco/turbo image from Docker Hub.
+        | To extend the image, create a Dockerfile with
+        |   FROM springloadedco/turbo:php8.4
+        | set your own registry image here, and run turbo:build.
         |
         */
-        'image' => env('TURBO_DOCKER_IMAGE', 'turbo'),
+        'image' => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:php8.4'),
 
         /*
         |--------------------------------------------------------------------------
