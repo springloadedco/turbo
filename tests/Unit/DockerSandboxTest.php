@@ -96,6 +96,7 @@ it('creates a build process with correct command', function () {
         ->toContain('docker')
         ->toContain('build')
         ->toContain('--progress=quiet')
+        ->toContain('--push')
         ->toContain('-t')
         ->toContain('turbo')
         ->toContain('-f')
