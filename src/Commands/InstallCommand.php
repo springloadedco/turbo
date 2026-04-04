@@ -529,25 +529,6 @@ class InstallCommand extends Command
     }
 
     /**
-     * Launch an interactive Claude session for the user to authenticate.
-     *
-     * The user runs /login inside the session, then exits.
-     * After the session closes, the sandbox is authenticated.
-     */
-    protected function authenticateSandbox(DockerSandbox $sandbox): void
-    {
-        $this->newLine();
-        $this->info('Launching Claude session for authentication...');
-        $this->newLine();
-
-        $prompt = 'Welcome! To complete the Turbo installation, please authenticate your Claude account. '
-            .'Run /login to begin authentication, complete the browser flow, then run /exit when you\'re done.';
-
-        $process = $sandbox->interactiveProcess(['-p', $prompt]);
-        $process->run();
-    }
-
-    /**
      * Install superpowers plugins into the sandbox.
      */
     protected function installSandboxPlugins(DockerSandbox $sandbox): void

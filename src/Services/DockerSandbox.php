@@ -232,26 +232,35 @@ class DockerSandbox
     }
 
     /**
-     * Create a TTY process for an interactive Claude session in the sandbox.
+     * Run an interactive Claude session in the sandbox.
+     *
+     * Uses pcntl_exec to replace the PHP process with sbx, giving sbx direct
+     * ownership of the terminal. Symfony Process's setTty(true) does not
+     * properly allocate a pty for fully-interactive TUIs like Claude Code,
+     * causing them to exit immediately.
+     *
+     * This method does not return — the PHP process becomes the sbx process.
      *
      * @param  array<string>  $claudeArgs  Optional arguments to pass to Claude CLI
      */
-    public function interactiveProcess(array $claudeArgs = []): Process
+    public function runInteractive(array $claudeArgs = []): never
     {
         $this->ensureSandboxExists();
         $this->prepareSandbox();
 
-        $command = [
-            'sbx', 'run',
-            $this->sandboxName(),
-        ];
+        $args = ['run', $this->sandboxName()];
 
         if (! empty($claudeArgs)) {
-            $command[] = '--';
-            $command = array_merge($command, $claudeArgs);
+            $args[] = '--';
+            $args = array_merge($args, $claudeArgs);
         }
 
-        return $this->ttyProcess($command);
+        $sbxPath = trim((string) shell_exec('command -v sbx')) ?: 'sbx';
+
+        pcntl_exec($sbxPath, $args);
+
+        // pcntl_exec only returns if it fails
+        throw new \RuntimeException('Failed to exec sbx');
     }
 
     /**

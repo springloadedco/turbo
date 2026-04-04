@@ -118,23 +118,6 @@ it('creates an exec process with correct command', function () {
         ->toContain('echo hello');
 });
 
-it('interactiveProcess ensures sandbox exists and returns simple run command', function () {
-    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
-    $sandbox->image = 'turbo';
-    $sandbox->workspace = '/Users/dev/Sites/cpbc';
-    $sandbox->shouldReceive('ensureSandboxExists')->once()->andReturn(true);
-    $sandbox->shouldReceive('prepareSandbox')->once();
-
-    $process = $sandbox->interactiveProcess();
-
-    $commandLine = $process->getCommandLine();
-    expect($commandLine)
-        ->toContain('sbx')
-        ->toContain('run')
-        ->toContain('claude-cpbc')
-        ->not->toContain('create');
-});
-
 it('promptProcess ensures sandbox exists and returns simple run command', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->image = 'turbo';
