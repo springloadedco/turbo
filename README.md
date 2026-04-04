@@ -137,7 +137,7 @@ The config also includes Docker sandbox settings:
 
 ```php
 'docker' => [
-    'image'      => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:php8.4'),
+    'image'      => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:latest'),
     'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
     'workspace'  => env('TURBO_DOCKER_WORKSPACE', base_path()),
 ],
@@ -145,7 +145,7 @@ The config also includes Docker sandbox settings:
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `image` | Fully-qualified OCI registry image for the sandbox template | `docker.io/springloadedco/turbo:php8.4` |
+| `image` | Fully-qualified OCI registry image for the sandbox template | `docker.io/springloadedco/turbo:latest` |
 | `dockerfile` | Path to a custom Dockerfile (falls back to the one shipped with Turbo) | `null` |
 | `workspace` | Local directory mounted into the sandbox | `base_path()` |
 
@@ -161,15 +161,7 @@ The config also includes Docker sandbox settings:
 
 ### Docker Sandbox
 
-Turbo publishes a pre-built sandbox image to Docker Hub based on `docker/sandbox-templates:claude-code` with PHP, common extensions, Composer, Node.js 22, and Chromium pre-installed.
-
-**Available tags:**
-
-| Tag | PHP Version |
-|-----|-------------|
-| `springloadedco/turbo:php8.5` | PHP 8.5 (also `latest`) |
-| `springloadedco/turbo:php8.4` | PHP 8.4 (default) |
-| `springloadedco/turbo:php8.3` | PHP 8.3 |
+Turbo publishes a pre-built sandbox image to Docker Hub as [`springloadedco/turbo`](https://hub.docker.com/r/springloadedco/turbo), based on `docker/sandbox-templates:claude-code` with PHP 8.4, common extensions, Composer, Node.js 22, and Chromium pre-installed.
 
 Most users don't need to build anything — `turbo:install` uses the published image by default and sbx pulls it from Docker Hub.
 
@@ -178,7 +170,7 @@ Most users don't need to build anything — `turbo:install` uses the published i
 If your project needs additional tools, create a Dockerfile in your project root:
 
 ```dockerfile
-FROM springloadedco/turbo:php8.4
+FROM springloadedco/turbo:latest
 USER root
 RUN apt-get update && apt-get install -y redis-tools
 USER agent

@@ -408,7 +408,7 @@ class InstallCommand extends Command
      */
     protected function configureDockerImage(): void
     {
-        $default = 'docker.io/springloadedco/turbo:php8.4';
+        $default = 'docker.io/springloadedco/turbo:latest';
 
         $image = text(
             label: 'Docker image name',

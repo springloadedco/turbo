@@ -139,7 +139,7 @@ Install: `brew install docker/tap/sbx`
 #### Image Registry Requirement
 - sbx uses a separate Docker daemon that does NOT share the local image store
 - Templates must be pulled from an OCI registry (Docker Hub, GHCR, etc.)
-- Default image: `docker.io/springloadedco/turbo:php8.4` — published via CI
+- Default image: `docker.io/springloadedco/turbo:latest` — published via CI
 - `turbo:build` is only needed for custom images extending the published one
 
 #### Symfony Process: TTY vs PTY

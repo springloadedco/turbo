@@ -1,17 +1,10 @@
 FROM docker/sandbox-templates:claude-code
-ARG PHP_VERSION=8.4
 
 USER root
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends software-properties-common \
-  && add-apt-repository ppa:ondrej/php \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends \
-    php${PHP_VERSION}-cli php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml \
-    php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-intl \
-    php${PHP_VERSION}-bcmath php${PHP_VERSION}-sqlite3 php${PHP_VERSION}-mysql \
-    unzip ca-certificates chromium-browser \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php-mysql \
+  unzip ca-certificates chromium-browser \
   && rm -rf /var/lib/apt/lists/*
 
 # Node.js 22 (base image ships v20 which is too old for modern TypeScript)
