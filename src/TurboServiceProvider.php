@@ -7,6 +7,7 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Springloaded\Turbo\Commands\ClaudeCommand;
 use Springloaded\Turbo\Commands\DockerBuildCommand;
 use Springloaded\Turbo\Commands\InstallCommand;
+use Springloaded\Turbo\Commands\PrepareCommand;
 use Springloaded\Turbo\Commands\PromptCommand;
 use Springloaded\Turbo\Commands\SkillsCommand;
 use Springloaded\Turbo\Commands\TurboCommand;
@@ -28,6 +29,7 @@ class TurboServiceProvider extends PackageServiceProvider
                 DockerBuildCommand::class,
                 ClaudeCommand::class,
                 PromptCommand::class,
+                PrepareCommand::class,
                 InstallCommand::class,
                 SkillsCommand::class,
             ]);

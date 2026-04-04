@@ -524,6 +524,10 @@ class InstallCommand extends Command
             return;
         }
 
+        // Configure host access (/etc/hosts entries + proxy bypasses)
+        $this->info('Preparing sandbox...');
+        $sandbox->prepareSandbox();
+
         // Install plugins
         $this->installSandboxPlugins($sandbox);
     }

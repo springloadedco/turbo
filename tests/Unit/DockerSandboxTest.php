@@ -123,7 +123,6 @@ it('promptProcess ensures sandbox exists and returns simple run command', functi
     $sandbox->image = 'turbo';
     $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('ensureSandboxExists')->once()->andReturn(true);
-    $sandbox->shouldReceive('prepareSandbox')->once();
 
     $process = $sandbox->promptProcess('Hello Claude');
 
