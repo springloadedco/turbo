@@ -1,9 +1,9 @@
 ---
 name: github-issue
-description: Create atomic GitHub issues for agent execution. Use when breaking down work into single-iteration tasks with precise acceptance criteria.
+description: Create atomic GitHub issues with clear acceptance criteria. Use when breaking down work into single-iteration tasks that can be picked up and completed independently.
 ---
 
-Issues represent individual tasks of a given milestone (plan) completable in a single context window. The quality of your issue directly determines implementation quality.
+Issues represent individual tasks that can be completed in a single focused work session. The quality of your issue directly determines implementation quality.
 
 **Key principle**: If you can't describe exactly what "done" looks like, the issue isn't ready to create.
 
@@ -11,12 +11,11 @@ Issues represent individual tasks of a given milestone (plan) completable in a s
 
 ```markdown
 ## Description
-[What needs to be done. Must be completable in ONE single context window.]
+[What needs to be done. Scoped to one focused work session.]
 
 ## Acceptance Criteria
 - [ ] Specific, verifiable criterion
 - [ ] Another criterion
-{{ $feedback_loops_checklist }}
 
 ## Files
 - `path/to/affected/file.php`
@@ -27,58 +26,48 @@ Issues represent individual tasks of a given milestone (plan) completable in a s
 | Section | Required | Description |
 |---------|----------|-------------|
 | Description | Yes | Clear explanation of what needs to be implemented |
-| Acceptance Criteria | Yes | Specific, verifiable criteria including feedback loops |
+| Acceptance Criteria | Yes | Specific, verifiable criteria for completion |
 | Files | No | Paths to files that will be created or modified |
-
-## Standard Acceptance Criteria
-
-EVERY issue must include feedback loop criteria relevant to the project's tech stack. Include commands that verify the code works: {{ $feedback_loops }}
-
-Example:
-```markdown
-{{ $feedback_loops_checklist }}
-```
 
 ## Example
 
 ```markdown
 ## Description
-Create PHP service wrapping Laravel-GitHub for API calls. Single point of access for all GitHub API operations.
+Add a `sendWelcomeEmail` action that sends a welcome email to newly-registered users. Must be queueable and handle delivery failures gracefully.
 
 ## Acceptance Criteria
-- [ ] `getMilestones()` returns array of milestone data
-- [ ] `getMilestone()` returns single milestone by number
-- [ ] `getIssuesForMilestone()` returns issues with labels
-- [ ] Handles non-existent resources gracefully
-{{ $feedback_loops_checklist }}
+- [ ] `SendWelcomeEmail` action class exists with `handle(User $user)` method
+- [ ] Dispatches via queue (`ShouldQueue`)
+- [ ] Logs failures without throwing
+- [ ] Unit test covers success and failure cases
 
 ## Files
-- `app/Services/Ralph/GitHubService.php`
-- `tests/Feature/GitHub/GitHubServiceTest.php`
+- `app/Actions/SendWelcomeEmail.php`
+- `tests/Unit/Actions/SendWelcomeEmailTest.php`
 ```
 
 ## Issue Sizing Guidelines
 
-An issue is **right-sized** when it can be completed in a single context window. Signs of a well-sized issue:
+An issue is **right-sized** when it can be completed in a single focused session. Signs of a well-sized issue:
 
-- **Single clear objective** - One thing to accomplish
-- **2-4 acceptance criteria** - Not counting standard feedback loops
-- **Affects 1-3 files** - Limited scope
-- **Describable in one sentence** - If you need paragraphs, split it up
+- **Single clear objective** — one thing to accomplish
+- **2-4 acceptance criteria** — not a laundry list
+- **Affects 1-3 files** — limited scope
+- **Describable in one sentence** — if you need paragraphs, split it up
 
 ### Common Mistakes
 
 **Too Large** (split into multiple issues):
-- "Implement user authentication" -> login issue, registration issue, password reset issue
-- "Add admin dashboard" -> stats widget issue, user list issue, activity feed issue
+- "Implement user authentication" → login issue, registration issue, password reset issue
+- "Add admin dashboard" → stats widget issue, user list issue, activity feed issue
 
 **Too Small** (combine with related work):
-- "Add import statement" -> part of the feature that uses it
-- "Fix typo in comment" -> part of the file's main changes
+- "Add import statement" → part of the feature that uses it
+- "Fix typo in comment" → part of the file's main changes
 
 **Too Vague** (needs specifics):
-- "Improve performance" -> Which endpoint? What metric? What target?
-- "Fix bug" -> What's the bug? What's the expected behavior?
+- "Improve performance" → Which endpoint? What metric? What target?
+- "Fix bug" → What's the bug? What's the expected behavior?
 
 ## Issue Dependencies
 
@@ -100,7 +89,6 @@ What needs to be done.
 
 ## Acceptance Criteria
 - [ ] Specific criterion
-- [ ] `composer test` passes
 EOF
 )" \
   --label "priority:high" \

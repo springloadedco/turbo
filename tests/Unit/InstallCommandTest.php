@@ -8,7 +8,7 @@ use Springloaded\Turbo\Services\FeedbackLoopDetector;
 use Springloaded\Turbo\Services\SkillsService;
 
 beforeEach(function () {
-    foreach (['.claude', '.cursor', '.codex'] as $dir) {
+    foreach (['.agents', '.claude', '.cursor', '.codex', '.github/skills'] as $dir) {
         $path = base_path($dir);
         if (File::isDirectory($path)) {
             File::deleteDirectory($path);
@@ -17,7 +17,7 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-    foreach (['.claude', '.cursor', '.codex'] as $dir) {
+    foreach (['.agents', '.claude', '.cursor', '.codex', '.github/skills'] as $dir) {
         $path = base_path($dir);
         if (File::isDirectory($path)) {
             File::deleteDirectory($path);
@@ -96,19 +96,19 @@ it('installs all skills to all agents in non-interactive mode', function () {
     $this->artisan('turbo:install', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    // Should have two calls: one for turbo skills, one for agent-browser
-    expect($capturedCalls)->toHaveCount(2);
+    // Non-interactive installs the default-enabled groups only (laravel + project).
+    // GitHub and third-party groups are opt-in interactively.
+    expect($capturedCalls)->toHaveCount(1);
 
-    // First call: turbo package skills
     expect($capturedCalls[0]['source'])->toEndWith('.ai/skills');
     expect($capturedCalls[0]['skills'])->toContain('laravel-controllers');
-    expect($capturedCalls[0]['skills'])->toContain('github-issue');
+    expect($capturedCalls[0]['skills'])->toContain('laravel-actions');
+    expect($capturedCalls[0]['skills'])->toContain('laravel-testing');
+    expect($capturedCalls[0]['skills'])->toContain('feedback-loops');
+    expect($capturedCalls[0]['skills'])->toContain('agent-captures');
+    expect($capturedCalls[0]['skills'])->not->toContain('github-issue');
+    expect($capturedCalls[0]['skills'])->not->toContain('agent-browser');
     expect($capturedCalls[0]['agents'])->toBe(['claude-code', 'cursor', 'codex', 'github-copilot']);
-
-    // Second call: agent-browser
-    expect($capturedCalls[1]['source'])->toBe('vercel-labs/agent-browser');
-    expect($capturedCalls[1]['skills'])->toBe(['agent-browser']);
-    expect($capturedCalls[1]['agents'])->toBe(['claude-code', 'cursor', 'codex', 'github-copilot']);
 });
 
 it('processes templates after installing turbo skills', function () {
@@ -116,10 +116,10 @@ it('processes templates after installing turbo skills', function () {
         'runNpxSkillsAdd' => function ($source) {
             // Only simulate file creation for turbo source (not third-party)
             if (str_ends_with($source, '.ai/skills')) {
-                $skillsPath = base_path('.claude/skills/github-issue');
+                $skillsPath = base_path('.claude/skills/feedback-loops');
                 File::makeDirectory($skillsPath, 0755, true);
                 File::copyDirectory(
-                    dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                    dirname(__DIR__, 2).'/.ai/skills/feedback-loops',
                     $skillsPath
                 );
             }
@@ -131,7 +131,7 @@ it('processes templates after installing turbo skills', function () {
     $this->artisan('turbo:install', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    $content = File::get(base_path('.claude/skills/github-issue/SKILL.md'));
+    $content = File::get(base_path('.claude/skills/feedback-loops/SKILL.md'));
     expect($content)->not->toContain('{{ $feedback_loops }}');
     expect($content)->toContain('`composer lint`');
 });
@@ -141,18 +141,5 @@ it('fails when turbo skill installation fails', function () {
 
     $this->artisan('turbo:install', ['--no-interaction' => true])
         ->expectsOutput('Failed to install Turbo skills.')
-        ->assertFailed();
-});
-
-it('fails when third-party skill installation fails', function () {
-    registerTestableInstallCommand([
-        'runNpxSkillsAdd' => function ($source) {
-            // Turbo skills succeed, third-party fails
-            return str_ends_with($source, '.ai/skills') ? 0 : 1;
-        },
-    ]);
-
-    $this->artisan('turbo:install', ['--no-interaction' => true])
-        ->expectsOutput('Failed to install agent-browser.')
         ->assertFailed();
 });

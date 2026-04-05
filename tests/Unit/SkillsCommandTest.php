@@ -96,10 +96,10 @@ it('passes package path to npx skills add', function () {
 it('processes templates after npx skills installs', function () {
     registerTestableSkillsCommand([
         'runNpxSkillsAdd' => function () {
-            $skillsPath = base_path('.claude/skills/github-issue');
+            $skillsPath = base_path('.claude/skills/feedback-loops');
             File::makeDirectory($skillsPath, 0755, true);
             File::copyDirectory(
-                dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                dirname(__DIR__, 2).'/.ai/skills/feedback-loops',
                 $skillsPath
             );
 
@@ -110,7 +110,7 @@ it('processes templates after npx skills installs', function () {
     $this->artisan('turbo:skills', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    $processedContent = File::get(base_path('.claude/skills/github-issue/SKILL.md'));
+    $processedContent = File::get(base_path('.claude/skills/feedback-loops/SKILL.md'));
     expect($processedContent)->not->toContain('{{ $feedback_loops }}');
     expect($processedContent)->toContain('`composer lint`');
 });
@@ -118,11 +118,11 @@ it('processes templates after npx skills installs', function () {
 it('processes templates across multiple agent directories', function () {
     registerTestableSkillsCommand([
         'runNpxSkillsAdd' => function () {
-            foreach (['.claude/skills/github-issue', '.cursor/skills/github-issue'] as $path) {
+            foreach (['.claude/skills/feedback-loops', '.cursor/skills/feedback-loops'] as $path) {
                 $skillsPath = base_path($path);
                 File::makeDirectory($skillsPath, 0755, true);
                 File::copyDirectory(
-                    dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                    dirname(__DIR__, 2).'/.ai/skills/feedback-loops',
                     $skillsPath
                 );
             }
@@ -134,7 +134,7 @@ it('processes templates across multiple agent directories', function () {
     $this->artisan('turbo:skills', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    foreach (['.claude/skills/github-issue', '.cursor/skills/github-issue'] as $path) {
+    foreach (['.claude/skills/feedback-loops', '.cursor/skills/feedback-loops'] as $path) {
         $content = File::get(base_path($path.'/SKILL.md'));
         expect($content)->not->toContain('{{ $feedback_loops }}');
         expect($content)->toContain('`composer lint`');
@@ -144,16 +144,16 @@ it('processes templates across multiple agent directories', function () {
 it('skips symlinked skill directories during template processing', function () {
     registerTestableSkillsCommand([
         'runNpxSkillsAdd' => function () {
-            $sourcePath = base_path('.claude/skills/github-issue');
+            $sourcePath = base_path('.claude/skills/feedback-loops');
             File::makeDirectory($sourcePath, 0755, true);
             File::copyDirectory(
-                dirname(__DIR__, 2).'/.ai/skills/github-issue',
+                dirname(__DIR__, 2).'/.ai/skills/feedback-loops',
                 $sourcePath
             );
 
             $cursorPath = base_path('.cursor/skills');
             File::makeDirectory($cursorPath, 0755, true);
-            symlink($sourcePath, $cursorPath.'/github-issue');
+            symlink($sourcePath, $cursorPath.'/feedback-loops');
 
             return 0;
         },
@@ -162,10 +162,10 @@ it('skips symlinked skill directories during template processing', function () {
     $this->artisan('turbo:skills', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    $content = File::get(base_path('.claude/skills/github-issue/SKILL.md'));
+    $content = File::get(base_path('.claude/skills/feedback-loops/SKILL.md'));
     expect($content)->not->toContain('{{ $feedback_loops }}');
 
-    expect(is_link(base_path('.cursor/skills/github-issue')))->toBeTrue();
+    expect(is_link(base_path('.cursor/skills/feedback-loops')))->toBeTrue();
 })->skip(PHP_OS_FAMILY === 'Windows', 'Symlinks require special permissions on Windows');
 
 it('outputs intro message before running npx skills', function () {

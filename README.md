@@ -95,19 +95,38 @@ php artisan turbo:skills
 
 ## Skills
 
-Turbo publishes the following skills to your project:
+Turbo ships skills organized into groups. During `turbo:install` you pick which groups to install; individual skills within each group can be customized.
+
+**Laravel patterns** — opinionated Laravel development conventions:
 
 | Skill | Description |
 |-------|-------------|
-| `laravel-actions` | Business logic encapsulation patterns |
 | `laravel-controllers` | Invokable controller patterns with Inertia |
-| `laravel-testing` | Pest/PHPUnit testing best practices |
+| `laravel-actions` | Business logic encapsulation patterns |
 | `laravel-validation` | Form Request validation patterns |
+| `laravel-testing` | Pest/PHPUnit testing best practices |
 | `laravel-inertia` | TypeScript page component patterns |
-| `github-issue` | Create atomic GitHub issues for agent execution |
-| `github-labels` | Apply consistent labels to GitHub issues |
-| `github-milestone` | Create well-structured GitHub milestones |
-| `github-pr-comment` | Add progress comments to PRs during agent execution |
+
+**Project utilities** — installed by default:
+
+| Skill | Description |
+|-------|-------------|
+| `feedback-loops` | Enforces project verification commands before claiming work done, committing, or opening a PR |
+| `agent-captures` | Standardizes agent-browser screenshot/PDF/video output locations |
+
+**GitHub workflow** (opt-in):
+
+| Skill | Description |
+|-------|-------------|
+| `github-issue` | Atomic issue creation with verifiable acceptance criteria |
+| `github-labels` | Consistent label taxonomy (type/priority) |
+| `github-milestone` | Well-structured milestones grouping related issues |
+
+**Third-party integrations** (opt-in):
+
+| Skill | Description |
+|-------|-------------|
+| `agent-browser` | Browser automation via [vercel-labs/agent-browser](https://agent-browser.dev/) |
 
 ## Configuration
 
@@ -131,7 +150,7 @@ This creates `config/turbo.php` where you can configure feedback loops — the v
 ],
 ```
 
-Remove or add commands to match your project's toolchain. These are rendered into skill templates via the `{{ $feedback_loops }}` and `{{ $feedback_loops_checklist }}` placeholders.
+Remove or add commands to match your project's toolchain. The `feedback-loops` skill uses these commands to enforce that agents verify their work before claiming tasks complete. They're rendered into skill templates via the `{{ $feedback_loops }}` and `{{ $feedback_loops_checklist }}` placeholders at install time.
 
 The config also includes Docker sandbox settings:
 

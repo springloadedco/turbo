@@ -3,7 +3,7 @@ name: github-milestone
 description: Create well-structured GitHub milestones. Use when planning new phases of work that group related issues together.
 ---
 
-Milestones group related issues into a phase of work. A well-structured milestone provides context and clear completion criteria for autonomous execution.
+Milestones group related issues into a phase of work. A well-structured milestone provides context and clear completion criteria.
 
 ## Milestone Description Format
 
@@ -32,17 +32,19 @@ Milestones group related issues into a phase of work. A well-structured mileston
 
 ```markdown
 ## Summary
-Migrate the Ralph autonomous agent system from file-based (PRD.md + progress.txt) to GitHub-native (milestones, issues, PRs). This enables better collaboration and visibility.
+Add Stripe billing to the app so users can subscribe to plans. Covers checkout, webhook handling, and the billing portal page.
 
 ## Key Files
-- `app/Services/Ralph/GitHubService.php`
-- `app/Console/Commands/Ralph/`
-- `config/github.php`
+- `app/Http/Controllers/BillingController.php`
+- `app/Services/Stripe/`
+- `config/services.php`
+- `resources/js/Pages/Billing/`
 
 ## Done When
-- [ ] All ralph:* Artisan commands functional
-- [ ] GitHub MCP integration working
-- [ ] Legacy files deprecated
+- [ ] Users can start a checkout for each plan
+- [ ] Subscription state is synced via webhooks
+- [ ] Billing portal page shows current plan + invoices
+- [ ] Feature tests cover checkout + cancellation
 ```
 
 ## Best Practices

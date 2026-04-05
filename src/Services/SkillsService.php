@@ -95,6 +95,27 @@ class SkillsService
     }
 
     /**
+     * Get the names of skills already installed across any agent directory.
+     *
+     * Scans the same directories as getInstalledSkillPaths() and returns the
+     * unique set of skill directory names (e.g. 'laravel-controllers').
+     *
+     * @return array<string>
+     */
+    public function getInstalledSkillNames(): array
+    {
+        $names = [];
+
+        foreach ($this->getInstalledSkillPaths() as $agentPath) {
+            foreach ($this->files->directories($agentPath) as $skillDir) {
+                $names[] = basename($skillDir);
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
      * Process template placeholders in content.
      */
     public function processTemplate(string $content): string

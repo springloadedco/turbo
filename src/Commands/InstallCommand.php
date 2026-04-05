@@ -24,12 +24,38 @@ class InstallCommand extends Command
     public $description = 'Set up Turbo for your project';
 
     /**
-     * Recommended third-party skills to offer during install.
+     * Skill groups offered during install, in display order.
      *
-     * @var array<array{name: string, source: string}>
+     * - `skills` lists turbo-bundled skills (strings) or third-party skills (arrays with name/source).
+     * - `defaultEnabled` controls whether the group is pre-checked on a fresh install.
+     *
+     * @var array<string, array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}>
      */
-    protected array $recommendedSkills = [
-        ['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser'],
+    protected array $skillGroups = [
+        'laravel' => [
+            'label' => 'Laravel patterns',
+            'description' => 'Opinionated Laravel development patterns',
+            'skills' => ['laravel-controllers', 'laravel-actions', 'laravel-validation', 'laravel-testing', 'laravel-inertia'],
+            'defaultEnabled' => true,
+        ],
+        'project' => [
+            'label' => 'Project utilities',
+            'description' => 'Feedback loops enforcement + sandbox helpers',
+            'skills' => ['feedback-loops', 'agent-captures'],
+            'defaultEnabled' => true,
+        ],
+        'github' => [
+            'label' => 'GitHub workflow',
+            'description' => 'Issue/label/milestone patterns',
+            'skills' => ['github-issue', 'github-labels', 'github-milestone'],
+            'defaultEnabled' => false,
+        ],
+        'thirdParty' => [
+            'label' => 'Third-party integrations',
+            'description' => 'Recommended external skills',
+            'skills' => [['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser']],
+            'defaultEnabled' => false,
+        ],
     ];
 
     public function __construct(
@@ -186,47 +212,183 @@ class InstallCommand extends Command
     }
 
     /**
-     * Prompt user to select which skills to install.
+     * Prompt user to select skills via grouped two-stage UI.
+     *
+     * Stage 1: pick which groups to include.
+     * Stage 2 (optional): customize skill selection within each group.
      *
      * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
      */
     protected function selectSkills(): array
     {
-        $turboSkills = $this->skills->getAvailableSkills();
+        $installed = $this->skills->getInstalledSkillNames();
 
-        // Build choices: turbo skills + recommended third-party
-        $choices = [];
-        foreach ($turboSkills as $skill) {
-            $choices["turbo:{$skill}"] = "{$skill}";
-        }
-        foreach ($this->recommendedSkills as $skill) {
-            $choices["recommended:{$skill['name']}"] = "{$skill['name']} (recommended)";
+        if (! $this->input->isInteractive()) {
+            return $this->defaultSelection($installed);
         }
 
-        if ($this->input->isInteractive()) {
-            $selected = multiselect(
-                label: 'Which skills would you like to install?',
-                options: $choices,
-                default: array_keys($choices),
-            );
-        } else {
-            $selected = array_keys($choices);
+        // Stage 1: group selection
+        $groupOptions = [];
+        foreach ($this->skillGroups as $key => $group) {
+            $groupOptions[$key] = "{$group['label']} — {$group['description']}";
         }
 
-        // Split selections back into turbo vs third-party
+        $groupDefaults = $this->defaultGroups($installed);
+
+        $selectedGroups = multiselect(
+            label: 'Which skill groups do you want?',
+            options: $groupOptions,
+            default: $groupDefaults,
+        );
+
+        if (empty($selectedGroups)) {
+            return ['turbo' => [], 'thirdParty' => []];
+        }
+
+        // Stage 2: optional per-skill customization
+        $customize = confirm(
+            label: 'Customize individual skills within each group?',
+            default: false,
+        );
+
         $turboSelected = [];
         $thirdPartySelected = [];
 
-        foreach ($selected as $key) {
-            if (str_starts_with($key, 'turbo:')) {
-                $turboSelected[] = str_replace('turbo:', '', $key);
-            } elseif (str_starts_with($key, 'recommended:')) {
-                $name = str_replace('recommended:', '', $key);
-                $skill = collect($this->recommendedSkills)->firstWhere('name', $name);
-                if ($skill) {
-                    $thirdPartySelected[] = $skill;
-                }
+        foreach ($selectedGroups as $groupKey) {
+            $group = $this->skillGroups[$groupKey];
+
+            if ($customize) {
+                [$turbo, $thirdParty] = $this->customizeGroup($groupKey, $group, $installed);
+            } else {
+                [$turbo, $thirdParty] = $this->allSkillsInGroup($group);
             }
+
+            $turboSelected = array_merge($turboSelected, $turbo);
+            $thirdPartySelected = array_merge($thirdPartySelected, $thirdParty);
+        }
+
+        return ['turbo' => $turboSelected, 'thirdParty' => $thirdPartySelected];
+    }
+
+    /**
+     * Compute default group selection: groups with installed skills + defaultEnabled groups.
+     *
+     * @param  array<string>  $installed
+     * @return array<string>
+     */
+    protected function defaultGroups(array $installed): array
+    {
+        $defaults = [];
+
+        foreach ($this->skillGroups as $key => $group) {
+            $hasInstalled = collect($group['skills'])->contains(
+                fn ($skill) => in_array($this->skillName($skill), $installed, true)
+            );
+
+            if ($hasInstalled || $group['defaultEnabled']) {
+                $defaults[] = $key;
+            }
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * Prompt for skills within a group. Pre-checks installed skills + all new ones.
+     *
+     * @param  array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}  $group
+     * @param  array<string>  $installed
+     * @return array{0: array<string>, 1: array<array{name: string, source: string}>}
+     */
+    protected function customizeGroup(string $groupKey, array $group, array $installed): array
+    {
+        $options = [];
+        $defaults = [];
+
+        foreach ($group['skills'] as $skill) {
+            $name = $this->skillName($skill);
+            $isInstalled = in_array($name, $installed, true);
+            $options[$name] = $isInstalled ? "{$name} (installed)" : $name;
+            $defaults[] = $name;
+        }
+
+        $selected = multiselect(
+            label: "{$group['label']} — pick skills to install:",
+            options: $options,
+            default: $defaults,
+        );
+
+        return $this->partitionSelection($group, $selected);
+    }
+
+    /**
+     * Return all skills in a group (when user skips customization).
+     *
+     * @param  array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}  $group
+     * @return array{0: array<string>, 1: array<array{name: string, source: string}>}
+     */
+    protected function allSkillsInGroup(array $group): array
+    {
+        $selected = array_map(fn ($skill) => $this->skillName($skill), $group['skills']);
+
+        return $this->partitionSelection($group, $selected);
+    }
+
+    /**
+     * Split selected skill names into turbo + thirdParty based on their definitions.
+     *
+     * @param  array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}  $group
+     * @param  array<string>  $selected
+     * @return array{0: array<string>, 1: array<array{name: string, source: string}>}
+     */
+    protected function partitionSelection(array $group, array $selected): array
+    {
+        $turbo = [];
+        $thirdParty = [];
+
+        foreach ($group['skills'] as $skill) {
+            $name = $this->skillName($skill);
+            if (! in_array($name, $selected, true)) {
+                continue;
+            }
+
+            if (is_array($skill)) {
+                $thirdParty[] = $skill;
+            } else {
+                $turbo[] = $skill;
+            }
+        }
+
+        return [$turbo, $thirdParty];
+    }
+
+    /**
+     * Extract the skill name from a string or definition array.
+     *
+     * @param  string|array{name: string, source: string}  $skill
+     */
+    protected function skillName(string|array $skill): string
+    {
+        return is_array($skill) ? $skill['name'] : $skill;
+    }
+
+    /**
+     * Non-interactive default: install all skills in default-enabled groups.
+     *
+     * @param  array<string>  $installed
+     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
+     */
+    protected function defaultSelection(array $installed): array
+    {
+        $turboSelected = [];
+        $thirdPartySelected = [];
+
+        $groupKeys = $this->defaultGroups($installed);
+
+        foreach ($groupKeys as $groupKey) {
+            [$turbo, $thirdParty] = $this->allSkillsInGroup($this->skillGroups[$groupKey]);
+            $turboSelected = array_merge($turboSelected, $turbo);
+            $thirdPartySelected = array_merge($thirdPartySelected, $thirdParty);
         }
 
         return ['turbo' => $turboSelected, 'thirdParty' => $thirdPartySelected];
@@ -459,7 +621,10 @@ class InstallCommand extends Command
     }
 
     /**
-     * Ask if the user wants to set up Docker sandbox.
+     * Set up the Docker sandbox if sbx is available and no sandbox exists yet.
+     *
+     * Skips with an informative message when sbx is not installed or when a
+     * sandbox for this project already exists.
      */
     protected function offerDockerSetup(): void
     {
@@ -467,8 +632,26 @@ class InstallCommand extends Command
             return;
         }
 
+        if (! $this->sbxAvailable()) {
+            $this->newLine();
+            $this->line('Note: sbx CLI not installed. Skipping Docker sandbox.');
+            $this->line('  Install with: brew install docker/tap/sbx');
+
+            return;
+        }
+
+        $sandbox = app(DockerSandbox::class);
+
+        if ($sandbox->sandboxExists()) {
+            $this->newLine();
+            $this->info("✓ Sandbox '{$sandbox->sandboxName()}' already exists.");
+            $this->line('  Run `php artisan turbo:doctor` to verify state.');
+
+            return;
+        }
+
         $wantsDocker = confirm(
-            label: 'Set up Docker sandbox?',
+            label: 'Create Docker sandbox for this project?',
             default: true,
         );
 
@@ -476,7 +659,6 @@ class InstallCommand extends Command
             return;
         }
 
-        // Configure image name
         $this->configureDockerImage();
 
         if (! $this->isPublishedImage()) {
@@ -485,31 +667,6 @@ class InstallCommand extends Command
             $this->newLine();
 
             if (! confirm(label: 'Image is pushed and ready?', default: true)) {
-                return;
-            }
-        }
-
-        // Create the sandbox
-        $sandbox = app(DockerSandbox::class);
-
-        if ($sandbox->sandboxExists()) {
-            $rebuild = confirm(
-                label: "Sandbox '{$sandbox->sandboxName()}' already exists. Rebuild it?",
-                default: false,
-            );
-
-            if (! $rebuild) {
-                return;
-            }
-
-            $this->info('Removing existing sandbox...');
-            $removeProcess = $sandbox->removeProcess();
-            $removeProcess->run();
-
-            if (! $removeProcess->isSuccessful()) {
-                $this->error('Failed to remove sandbox.');
-                $this->line($removeProcess->getErrorOutput());
-
                 return;
             }
         }
@@ -525,12 +682,18 @@ class InstallCommand extends Command
             return;
         }
 
-        // Configure host access (/etc/hosts entries + proxy bypasses)
         $this->info('Preparing sandbox...');
         $sandbox->prepareSandbox();
 
-        // Install plugins
         $this->installSandboxPlugins($sandbox);
+    }
+
+    /**
+     * Check whether the sbx CLI is on the PATH.
+     */
+    protected function sbxAvailable(): bool
+    {
+        return trim((string) shell_exec('command -v sbx')) !== '';
     }
 
     /**
