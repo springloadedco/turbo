@@ -639,10 +639,13 @@ class InstallCommand extends Command
             return;
         }
 
+        // Plugins must be installed BEFORE prepareSandbox: running sbx exec
+        // (prepareSandbox) immediately before sbx run (plugin install) triggers
+        // the same SIGKILL-on-agent-start issue seen in turbo:claude.
+        $this->installSandboxPlugins($sandbox);
+
         $this->info('Preparing sandbox...');
         $sandbox->prepareSandbox();
-
-        $this->installSandboxPlugins($sandbox);
     }
 
     /**
