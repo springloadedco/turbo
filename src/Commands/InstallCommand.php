@@ -26,33 +26,30 @@ class InstallCommand extends Command
     /**
      * Skill groups offered during install, in display order.
      *
+     * - `prefix` is the label shown in the multiselect (padded for alignment).
      * - `skills` lists turbo-bundled skills (strings) or third-party skills (arrays with name/source).
      * - `defaultEnabled` controls whether the group is pre-checked on a fresh install.
      *
-     * @var array<string, array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}>
+     * @var array<string, array{prefix: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}>
      */
     protected array $skillGroups = [
         'laravel' => [
-            'label' => 'Laravel patterns',
-            'description' => 'Opinionated Laravel development patterns',
+            'prefix' => 'Laravel',
             'skills' => ['laravel-controllers', 'laravel-actions', 'laravel-validation', 'laravel-testing', 'laravel-inertia'],
             'defaultEnabled' => true,
         ],
         'project' => [
-            'label' => 'Project utilities',
-            'description' => 'Feedback loops enforcement + sandbox helpers',
+            'prefix' => 'Project',
             'skills' => ['feedback-loops', 'agent-captures'],
             'defaultEnabled' => true,
         ],
         'github' => [
-            'label' => 'GitHub workflow',
-            'description' => 'Issue/label/milestone patterns',
+            'prefix' => 'GitHub',
             'skills' => ['github-issue', 'github-labels', 'github-milestone'],
             'defaultEnabled' => false,
         ],
         'thirdParty' => [
-            'label' => 'Third-party integrations',
-            'description' => 'Recommended external skills',
+            'prefix' => '3rd-party',
             'skills' => [['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser']],
             'defaultEnabled' => false,
         ],
@@ -212,80 +209,91 @@ class InstallCommand extends Command
     }
 
     /**
-     * Prompt user to select skills via grouped two-stage UI.
+     * Prompt user to select skills via a flat multiselect with grouped labels.
      *
-     * Stage 1: pick which groups to include.
-     * Stage 2 (optional): customize skill selection within each group.
+     * Options are labeled `Group › skill-name` (padded), with already-installed
+     * skills marked `(installed)` and smart per-group defaults.
      *
      * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
      */
     protected function selectSkills(): array
     {
         $installed = $this->skills->getInstalledSkillNames();
+        $flat = $this->flattenSkills();
 
         if (! $this->input->isInteractive()) {
-            return $this->defaultSelection($installed);
+            $selected = $this->defaultSelectedKeys($flat, $installed);
+
+            return $this->partitionByKeys($flat, $selected);
         }
 
-        // Stage 1: group selection
-        $groupOptions = [];
-        foreach ($this->skillGroups as $key => $group) {
-            $groupOptions[$key] = "{$group['label']} — {$group['description']}";
+        $options = [];
+        $defaults = $this->defaultSelectedKeys($flat, $installed);
+        $prefixWidth = $this->prefixWidth();
+
+        foreach ($flat as $key => $entry) {
+            $prefix = str_pad($entry['prefix'], $prefixWidth);
+            $name = $entry['name'];
+            $suffix = in_array($name, $installed, true) ? ' (installed)' : '';
+            $options[$key] = "{$prefix} › {$name}{$suffix}";
         }
 
-        $groupDefaults = $this->defaultGroups($installed);
-
-        $selectedGroups = multiselect(
-            label: 'Which skill groups do you want?',
-            options: $groupOptions,
-            default: $groupDefaults,
+        $selected = multiselect(
+            label: 'Which skills would you like to install?',
+            options: $options,
+            default: $defaults,
+            scroll: 15,
         );
 
-        if (empty($selectedGroups)) {
-            return ['turbo' => [], 'thirdParty' => []];
-        }
-
-        // Stage 2: optional per-skill customization
-        $customize = confirm(
-            label: 'Customize individual skills within each group?',
-            default: false,
-        );
-
-        $turboSelected = [];
-        $thirdPartySelected = [];
-
-        foreach ($selectedGroups as $groupKey) {
-            $group = $this->skillGroups[$groupKey];
-
-            if ($customize) {
-                [$turbo, $thirdParty] = $this->customizeGroup($groupKey, $group, $installed);
-            } else {
-                [$turbo, $thirdParty] = $this->allSkillsInGroup($group);
-            }
-
-            $turboSelected = array_merge($turboSelected, $turbo);
-            $thirdPartySelected = array_merge($thirdPartySelected, $thirdParty);
-        }
-
-        return ['turbo' => $turboSelected, 'thirdParty' => $thirdPartySelected];
+        return $this->partitionByKeys($flat, $selected);
     }
 
     /**
-     * Compute default group selection: groups with installed skills + defaultEnabled groups.
+     * Flatten skillGroups into a single indexed list with group metadata.
      *
+     * Returns a map of unique keys (e.g. 'laravel:laravel-controllers') to
+     * entries describing each skill's group context.
+     *
+     * @return array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string}}>
+     */
+    protected function flattenSkills(): array
+    {
+        $flat = [];
+
+        foreach ($this->skillGroups as $groupKey => $group) {
+            foreach ($group['skills'] as $skill) {
+                $name = $this->skillName($skill);
+                $flat["{$groupKey}:{$name}"] = [
+                    'prefix' => $group['prefix'],
+                    'group' => $groupKey,
+                    'name' => $name,
+                    'definition' => $skill,
+                ];
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * Compute default-selected skill keys.
+     *
+     * A skill is default-checked if it's already installed, or if its group
+     * is default-enabled.
+     *
+     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string}}>  $flat
      * @param  array<string>  $installed
      * @return array<string>
      */
-    protected function defaultGroups(array $installed): array
+    protected function defaultSelectedKeys(array $flat, array $installed): array
     {
         $defaults = [];
 
-        foreach ($this->skillGroups as $key => $group) {
-            $hasInstalled = collect($group['skills'])->contains(
-                fn ($skill) => in_array($this->skillName($skill), $installed, true)
-            );
+        foreach ($flat as $key => $entry) {
+            $group = $this->skillGroups[$entry['group']];
+            $isInstalled = in_array($entry['name'], $installed, true);
 
-            if ($hasInstalled || $group['defaultEnabled']) {
+            if ($isInstalled || $group['defaultEnabled']) {
                 $defaults[] = $key;
             }
         }
@@ -294,72 +302,43 @@ class InstallCommand extends Command
     }
 
     /**
-     * Prompt for skills within a group. Pre-checks installed skills + all new ones.
+     * Partition selected keys back into turbo + thirdParty buckets.
      *
-     * @param  array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}  $group
-     * @param  array<string>  $installed
-     * @return array{0: array<string>, 1: array<array{name: string, source: string}>}
-     */
-    protected function customizeGroup(string $groupKey, array $group, array $installed): array
-    {
-        $options = [];
-        $defaults = [];
-
-        foreach ($group['skills'] as $skill) {
-            $name = $this->skillName($skill);
-            $isInstalled = in_array($name, $installed, true);
-            $options[$name] = $isInstalled ? "{$name} (installed)" : $name;
-            $defaults[] = $name;
-        }
-
-        $selected = multiselect(
-            label: "{$group['label']} — pick skills to install:",
-            options: $options,
-            default: $defaults,
-        );
-
-        return $this->partitionSelection($group, $selected);
-    }
-
-    /**
-     * Return all skills in a group (when user skips customization).
-     *
-     * @param  array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}  $group
-     * @return array{0: array<string>, 1: array<array{name: string, source: string}>}
-     */
-    protected function allSkillsInGroup(array $group): array
-    {
-        $selected = array_map(fn ($skill) => $this->skillName($skill), $group['skills']);
-
-        return $this->partitionSelection($group, $selected);
-    }
-
-    /**
-     * Split selected skill names into turbo + thirdParty based on their definitions.
-     *
-     * @param  array{label: string, description: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}  $group
+     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string}}>  $flat
      * @param  array<string>  $selected
-     * @return array{0: array<string>, 1: array<array{name: string, source: string}>}
+     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
      */
-    protected function partitionSelection(array $group, array $selected): array
+    protected function partitionByKeys(array $flat, array $selected): array
     {
         $turbo = [];
         $thirdParty = [];
 
-        foreach ($group['skills'] as $skill) {
-            $name = $this->skillName($skill);
-            if (! in_array($name, $selected, true)) {
+        foreach ($selected as $key) {
+            if (! isset($flat[$key])) {
                 continue;
             }
 
-            if (is_array($skill)) {
-                $thirdParty[] = $skill;
+            $definition = $flat[$key]['definition'];
+
+            if (is_array($definition)) {
+                $thirdParty[] = $definition;
             } else {
-                $turbo[] = $skill;
+                $turbo[] = $definition;
             }
         }
 
-        return [$turbo, $thirdParty];
+        return ['turbo' => $turbo, 'thirdParty' => $thirdParty];
+    }
+
+    /**
+     * Width of the longest group prefix, for padding labels.
+     */
+    protected function prefixWidth(): int
+    {
+        return max(array_map(
+            fn (array $group): int => mb_strlen($group['prefix']),
+            $this->skillGroups,
+        ));
     }
 
     /**
@@ -370,28 +349,6 @@ class InstallCommand extends Command
     protected function skillName(string|array $skill): string
     {
         return is_array($skill) ? $skill['name'] : $skill;
-    }
-
-    /**
-     * Non-interactive default: install all skills in default-enabled groups.
-     *
-     * @param  array<string>  $installed
-     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
-     */
-    protected function defaultSelection(array $installed): array
-    {
-        $turboSelected = [];
-        $thirdPartySelected = [];
-
-        $groupKeys = $this->defaultGroups($installed);
-
-        foreach ($groupKeys as $groupKey) {
-            [$turbo, $thirdParty] = $this->allSkillsInGroup($this->skillGroups[$groupKey]);
-            $turboSelected = array_merge($turboSelected, $turbo);
-            $thirdPartySelected = array_merge($thirdPartySelected, $thirdParty);
-        }
-
-        return ['turbo' => $turboSelected, 'thirdParty' => $thirdPartySelected];
     }
 
     /**
