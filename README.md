@@ -156,16 +156,14 @@ The config also includes Docker sandbox settings:
 
 ```php
 'docker' => [
-    'image'      => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:latest'),
-    'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
-    'workspace'  => env('TURBO_DOCKER_WORKSPACE', base_path()),
+    'image'     => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:latest'),
+    'workspace' => env('TURBO_DOCKER_WORKSPACE', base_path()),
 ],
 ```
 
 | Key | Description | Default |
 |-----|-------------|---------|
 | `image` | Fully-qualified OCI registry image for the sandbox template | `docker.io/springloadedco/turbo:latest` |
-| `dockerfile` | Path to a custom Dockerfile (falls back to the one shipped with Turbo) | `null` |
 | `workspace` | Local directory mounted into the sandbox | `base_path()` |
 
 ## Commands
@@ -257,7 +255,7 @@ Then allow the project's `.envrc`:
 direnv allow
 ```
 
-After that, `turbo claude`, `turbo build`, etc. work directly whenever you're in the project directory.
+After that, `turbo claude`, `turbo prompt "…"`, etc. work directly whenever you're in the project directory.
 
 ## Testing
 

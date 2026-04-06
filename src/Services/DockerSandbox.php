@@ -328,69 +328,12 @@ class DockerSandbox
     }
 
     /**
-     * Run a prompt in the sandbox, creating it if necessary.
-     */
-    public function runPrompt(string $prompt, ?callable $output = null): Process
-    {
-        return $this->runInSandbox(['-p', $prompt], $output);
-    }
-
-    /**
-     * Run a Claude CLI command in the sandbox (e.g. plugin, config subcommands).
-     *
-     * Unlike runPrompt(), this passes arguments directly to the claude CLI
-     * instead of using the -p flag, so they're treated as subcommands.
-     */
-    public function runCommand(array $args, ?callable $output = null): Process
-    {
-        return $this->runInSandbox($args, $output);
-    }
-
-    /**
-     * Run arguments in the sandbox, creating it if it doesn't exist.
-     *
-     * @param  array<string>  $claudeArgs  Arguments passed to claude after --
-     */
-    protected function runInSandbox(array $claudeArgs, ?callable $output = null): Process
-    {
-        $this->ensureSandboxExists();
-
-        $command = array_merge([
-            'sbx', 'run',
-            $this->sandboxName(),
-            '--',
-        ], $claudeArgs);
-
-        $process = $this->ptyProcess($command);
-        $process->run($output);
-
-        return $process;
-    }
-
-    /**
      * Create a process with no timeout.
      */
     protected function process(array $command): Process
     {
         $process = new Process($command);
         $process->setTimeout(null);
-
-        return $process;
-    }
-
-    /**
-     * Create a process with TTY for fully interactive sessions.
-     *
-     * TTY connects the real terminal's stdin/stdout/stderr directly,
-     * allowing interactive programs like Claude to work properly.
-     */
-    protected function ttyProcess(array $command): Process
-    {
-        $process = $this->process($command);
-
-        if (Process::isTtySupported()) {
-            $process->setTty(true);
-        }
 
         return $process;
     }

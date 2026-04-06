@@ -32,7 +32,7 @@ return [
         | The default uses the published springloadedco/turbo image from Docker Hub.
         | To extend the image, create a Dockerfile with
         |   FROM springloadedco/turbo:latest
-        | set your own registry image here, and run turbo:build.
+        | then build/push it and set your own registry image here.
         |
         */
         'image' => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:latest'),
