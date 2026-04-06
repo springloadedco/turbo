@@ -69,6 +69,8 @@ class InstallCommand extends Command
             '--tag' => 'turbo-config',
         ]);
 
+        $this->enableSuperpowersPlugin();
+
         // Step 1: Detect and configure feedback loops
         $this->configureFeedbackLoops();
 
@@ -478,6 +480,36 @@ class InstallCommand extends Command
     }
 
     /**
+     * Enable the superpowers plugin in .claude/settings.json.
+     *
+     * This is a committed project file. Claude Code reads enabledPlugins
+     * and auto-installs the plugin on first session — no sbx run needed.
+     */
+    protected function enableSuperpowersPlugin(): void
+    {
+        $settingsPath = base_path('.claude/settings.json');
+
+        $settings = $this->files->exists($settingsPath)
+            ? json_decode($this->files->get($settingsPath), true) ?? []
+            : [];
+
+        $settings['enabledPlugins'] = array_merge($settings['enabledPlugins'] ?? [], [
+            'superpowers@claude-plugins-official' => true,
+        ]);
+
+        $dir = dirname($settingsPath);
+
+        if (! $this->files->isDirectory($dir)) {
+            $this->files->makeDirectory($dir, 0755, true);
+        }
+
+        $this->files->put(
+            $settingsPath,
+            json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
+        );
+    }
+
+    /**
      * Write settings to .claude/settings.local.json.
      *
      * @param  array<string, mixed>  $settings
@@ -639,11 +671,6 @@ class InstallCommand extends Command
             return;
         }
 
-        // Plugins must be installed BEFORE prepareSandbox: running sbx exec
-        // (prepareSandbox) immediately before sbx run (plugin install) triggers
-        // the same SIGKILL-on-agent-start issue seen in turbo:claude.
-        $this->installSandboxPlugins($sandbox);
-
         $this->info('Preparing sandbox...');
         $sandbox->prepareSandbox();
     }
@@ -654,34 +681,5 @@ class InstallCommand extends Command
     protected function sbxAvailable(): bool
     {
         return trim((string) shell_exec('command -v sbx')) !== '';
-    }
-
-    /**
-     * Install superpowers plugins into the sandbox.
-     */
-    protected function installSandboxPlugins(DockerSandbox $sandbox): void
-    {
-        $this->info('Installing sandbox plugins...');
-
-        $outputCallback = fn ($type, $buffer) => $this->output->write($buffer);
-
-        $result = $sandbox->runCommand(
-            ['plugin', 'marketplace', 'add', 'obra/superpowers-marketplace'],
-            $outputCallback,
-        );
-
-        $resultOutput = $result->getErrorOutput().$result->getOutput();
-
-        if (! $result->isSuccessful() && ! str_contains($resultOutput, 'already installed')) {
-            $this->warn('Failed to install marketplace plugin. You may need to authenticate first.');
-            $this->line('Run <comment>turbo:claude</comment> and use <comment>/login</comment> to authenticate.');
-
-            return;
-        }
-
-        $sandbox->runCommand(
-            ['plugin', 'install', 'superpowers@superpowers-marketplace'],
-            $outputCallback,
-        );
     }
 }
