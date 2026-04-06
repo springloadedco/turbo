@@ -95,8 +95,8 @@ class DockerSandbox
     /**
      * Create a process to prepare the sandbox environment.
      *
-     * Runs the setup script which handles node_modules isolation
-     * and /etc/hosts entries for host dev server access.
+     * Runs the setup script which handles /etc/hosts entries
+     * for host dev server access.
      */
     public function prepareSandboxProcess(): Process
     {

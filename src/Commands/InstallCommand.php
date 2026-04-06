@@ -71,7 +71,6 @@ class InstallCommand extends Command
 
         $this->enableSuperpowersPlugin();
 
-        // Step 1: Detect and configure feedback loops
         $this->configureFeedbackLoops();
 
         if (! $this->checkNpxAvailable()) {
@@ -81,7 +80,6 @@ class InstallCommand extends Command
             return self::FAILURE;
         }
 
-        // Step 1: Skill selection
         $selectedSkills = $this->selectSkills();
 
         if (empty($selectedSkills['turbo']) && empty($selectedSkills['thirdParty'])) {
@@ -90,7 +88,6 @@ class InstallCommand extends Command
             return self::SUCCESS;
         }
 
-        // Step 2: Agent selection
         $selectedAgents = $this->selectAgents();
 
         if (empty($selectedAgents)) {
@@ -98,8 +95,6 @@ class InstallCommand extends Command
 
             return self::SUCCESS;
         }
-
-        // Step 3: Install skills
         if (! empty($selectedSkills['turbo'])) {
             $this->info('Installing Turbo skills...');
 

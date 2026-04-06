@@ -39,7 +39,13 @@ class PromptCommand extends Command
         $this->line($process->getOutput());
 
         if (! $process->isSuccessful()) {
+            $exitCode = $process->getExitCode();
             $this->error($process->getErrorOutput());
+
+            if ($exitCode === 137) {
+                $this->warn('The Claude agent was killed (exit 137). You may need to authenticate first.');
+                $this->line('Run <comment>turbo:claude</comment> and use <comment>/login</comment> to authenticate.');
+            }
 
             return self::FAILURE;
         }
