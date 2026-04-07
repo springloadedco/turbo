@@ -135,7 +135,9 @@ class InstallCommand extends Command
         $this->configureSecrets();
 
         // Step 5: Docker sandbox
-        $this->offerDockerSetup();
+        if (! $this->offerDockerSetup()) {
+            return self::FAILURE;
+        }
 
         $this->newLine();
         $this->info('Turbo installation complete!');
@@ -609,10 +611,10 @@ class InstallCommand extends Command
      * Skips with an informative message when sbx is not installed or when a
      * sandbox for this project already exists.
      */
-    protected function offerDockerSetup(): void
+    protected function offerDockerSetup(): bool
     {
         if (! $this->input->isInteractive()) {
-            return;
+            return true;
         }
 
         if (! $this->sbxAvailable()) {
@@ -620,7 +622,7 @@ class InstallCommand extends Command
             $this->line('Note: sbx CLI not installed. Skipping Docker sandbox.');
             $this->line('  Install with: brew install docker/tap/sbx');
 
-            return;
+            return true;
         }
 
         $sandbox = app(DockerSandbox::class);
@@ -630,7 +632,7 @@ class InstallCommand extends Command
             $this->info("✓ Sandbox '{$sandbox->sandboxName()}' already exists.");
             $this->line('  Run `php artisan turbo:doctor` to verify state.');
 
-            return;
+            return true;
         }
 
         $this->configureDockerImage();
@@ -641,7 +643,7 @@ class InstallCommand extends Command
             $this->newLine();
 
             if (! confirm(label: 'Image is pushed and ready?', default: true)) {
-                return;
+                return true;
             }
         }
 
@@ -653,11 +655,13 @@ class InstallCommand extends Command
             $this->error('Failed to create sandbox.');
             $this->line($createProcess->getErrorOutput());
 
-            return;
+            return false;
         }
 
         $this->info('Preparing sandbox...');
         $sandbox->prepareSandbox();
+
+        return true;
     }
 
     /**
