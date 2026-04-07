@@ -1,6 +1,7 @@
 <?php
 
 use Springloaded\Turbo\Services\DockerSandbox;
+use Symfony\Component\Process\Process;
 
 it('reports sandbox not found when it does not exist', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
@@ -22,7 +23,7 @@ it('runs host and port checks when sandbox exists', function () {
     $sandbox->shouldReceive('sandboxName')->andReturn('claude-cpbc');
     $sandbox->shouldReceive('resolveHosts')->once()->andReturn([]);
     $sandbox->shouldReceive('portsProcess')->once()->andReturn(
-        new Symfony\Component\Process\Process(['echo', 'No ports'])
+        new Process(['echo', 'No ports'])
     );
 
     app()->instance(DockerSandbox::class, $sandbox);
