@@ -50,7 +50,10 @@ class InstallCommand extends Command
         ],
         'thirdParty' => [
             'prefix' => '3rd-party',
-            'skills' => [['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser']],
+            'skills' => [
+                ['name' => 'superpowers', 'source' => 'obra/superpowers'],
+                ['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser'],
+            ],
             'defaultEnabled' => false,
         ],
     ];
@@ -68,8 +71,6 @@ class InstallCommand extends Command
         $this->callSilently('vendor:publish', [
             '--tag' => 'turbo-config',
         ]);
-
-        $this->enableSuperpowersPlugin();
 
         $this->configureFeedbackLoops();
 
@@ -472,36 +473,16 @@ class InstallCommand extends Command
 
         $this->writeSettings($settingsPath, $settings);
         $this->info('GitHub token configured.');
-    }
 
-    /**
-     * Enable the superpowers plugin in .claude/settings.json.
-     *
-     * This is a committed project file. Claude Code reads enabledPlugins
-     * and auto-installs the plugin on first session — no sbx run needed.
-     */
-    protected function enableSuperpowersPlugin(): void
-    {
-        $settingsPath = base_path('.claude/settings.json');
+        if ($this->sbxAvailable()) {
+            $sandbox = app(DockerSandbox::class);
+            $process = new Process(['sbx', 'secret', 'set', $sandbox->sandboxName(), 'github', '-t', $token]);
+            $process->run();
 
-        $settings = $this->files->exists($settingsPath)
-            ? json_decode($this->files->get($settingsPath), true) ?? []
-            : [];
-
-        $settings['enabledPlugins'] = array_merge($settings['enabledPlugins'] ?? [], [
-            'superpowers@claude-plugins-official' => true,
-        ]);
-
-        $dir = dirname($settingsPath);
-
-        if (! $this->files->isDirectory($dir)) {
-            $this->files->makeDirectory($dir, 0755, true);
+            if ($process->isSuccessful()) {
+                $this->info('GitHub token set as sandbox secret.');
+            }
         }
-
-        $this->files->put(
-            $settingsPath,
-            json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n"
-        );
     }
 
     /**
@@ -556,9 +537,15 @@ class InstallCommand extends Command
     {
         $default = 'docker.io/springloadedco/turbo:latest';
 
+        $this->newLine();
+        $this->line('The default image includes PHP 8.4, Composer, Node 22, Chromium,');
+        $this->line('and fixes for native binary corruption during npm install.');
+        $this->line('To customize, extend with <comment>FROM springloadedco/turbo:latest</comment>');
+        $this->line('and push to a registry.');
+        $this->newLine();
+
         $image = text(
-            label: 'Docker image name',
-            hint: 'Press enter to use the published image. To extend it, enter your own registry image (e.g. docker.io/my-org/my-sandbox:latest).',
+            label: 'Docker image',
             default: $default,
             required: true,
         );
@@ -634,15 +621,6 @@ class InstallCommand extends Command
             return;
         }
 
-        $wantsDocker = confirm(
-            label: 'Create Docker sandbox for this project?',
-            default: true,
-        );
-
-        if (! $wantsDocker) {
-            return;
-        }
-
         $this->configureDockerImage();
 
         if (! $this->isPublishedImage()) {
@@ -675,6 +653,9 @@ class InstallCommand extends Command
      */
     protected function sbxAvailable(): bool
     {
-        return trim((string) shell_exec('command -v sbx')) !== '';
+        $process = new Process(['which', 'sbx']);
+        $process->run();
+
+        return $process->isSuccessful();
     }
 }

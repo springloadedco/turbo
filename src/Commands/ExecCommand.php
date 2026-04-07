@@ -8,7 +8,7 @@ use Springloaded\Turbo\Services\DockerSandbox;
 class ExecCommand extends Command
 {
     protected $signature = 'turbo:exec
-        {args* : The command and arguments to execute in the sandbox}
+        {cmd : The command to execute in the sandbox}
         {--tty : Allocate a pseudo-TTY for interactive commands (e.g. bash)}';
 
     protected $description = 'Execute a command inside the sandbox';
@@ -21,8 +21,9 @@ class ExecCommand extends Command
             return self::FAILURE;
         }
 
-        /** @var array<string> $args */
-        $args = $this->argument('args');
+        /** @var string $cmd */
+        $cmd = $this->argument('cmd');
+        $args = ['bash', '-c', $cmd];
 
         if ($this->option('tty')) {
             $sandbox->execInteractive($args);

@@ -4,6 +4,7 @@ namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
 use Springloaded\Turbo\Services\DockerSandbox;
+use Symfony\Component\Process\Process;
 
 class DoctorCommand extends Command
 {
@@ -19,9 +20,9 @@ class DoctorCommand extends Command
         $this->newLine();
 
         $this->checkSbxInstalled();
-        $this->checkSandboxExists($sandbox);
+        $exists = $this->checkSandboxExists($sandbox);
 
-        if ($sandbox->sandboxExists()) {
+        if ($exists) {
             $this->checkHostsConfigured($sandbox);
             $this->checkPublishedPorts($sandbox);
         }
@@ -41,29 +42,36 @@ class DoctorCommand extends Command
 
     protected function checkSbxInstalled(): void
     {
-        $path = trim((string) shell_exec('command -v sbx'));
+        $which = new Process(['which', 'sbx']);
+        $which->run();
 
-        if ($path === '') {
+        if (! $which->isSuccessful()) {
             $this->reportFailure('sbx CLI', 'not found on PATH. Install with: brew install docker/tap/sbx');
 
             return;
         }
 
-        $version = trim((string) shell_exec('sbx version 2>/dev/null | head -n 1'));
+        $versionProcess = new Process(['sbx', 'version']);
+        $versionProcess->run();
+
+        $version = trim($versionProcess->getOutput());
+        $path = trim($which->getOutput());
         $this->pass('sbx CLI', $version !== '' ? $version : $path);
     }
 
-    protected function checkSandboxExists(DockerSandbox $sandbox): void
+    protected function checkSandboxExists(DockerSandbox $sandbox): bool
     {
         $name = $sandbox->sandboxName();
 
         if (! $sandbox->sandboxExists()) {
             $this->reportFailure("Sandbox '{$name}'", 'does not exist. Run turbo:install to create it.');
 
-            return;
+            return false;
         }
 
         $this->pass("Sandbox '{$name}'", 'exists');
+
+        return true;
     }
 
     protected function checkHostsConfigured(DockerSandbox $sandbox): void

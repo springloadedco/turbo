@@ -3,17 +3,15 @@
 namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
-use Springloaded\Turbo\Commands\Concerns\DisplaysCommands;
+use Illuminate\Support\Str;
 use Springloaded\Turbo\Services\DockerSandbox;
 use Symfony\Component\Console\Helper\ProgressIndicator;
 
 class PromptCommand extends Command
 {
-    use DisplaysCommands;
-
     protected $signature = 'turbo:prompt {prompt : The prompt to send to Claude}';
 
-    protected $description = 'Run Claude with a prompt in the Docker sandbox';
+    protected $description = 'Run Claude with a prompt in the sandbox';
 
     public function handle(DockerSandbox $sandbox): int
     {
@@ -21,7 +19,7 @@ class PromptCommand extends Command
 
         $process = $sandbox->promptProcess($prompt);
 
-        $this->displayCommand($process);
+        $this->info(Str::remove("'", $process->getCommandLine()));
 
         $process->start();
 

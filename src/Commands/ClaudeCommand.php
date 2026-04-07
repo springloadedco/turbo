@@ -9,7 +9,7 @@ class ClaudeCommand extends Command
 {
     protected $signature = 'turbo:claude';
 
-    protected $description = 'Start an interactive Claude session in the Docker sandbox';
+    protected $description = 'Start an interactive Claude session in the sandbox';
 
     public function handle(DockerSandbox $sandbox): never
     {
