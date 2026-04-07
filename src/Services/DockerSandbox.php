@@ -304,7 +304,9 @@ class DockerSandbox
      */
     protected function execSbx(array $args): never
     {
-        $sbxPath = trim((string) shell_exec('command -v sbx')) ?: 'sbx';
+        $which = new Process(['which', 'sbx']);
+        $which->run();
+        $sbxPath = $which->isSuccessful() ? trim($which->getOutput()) : 'sbx';
 
         pcntl_exec($sbxPath, $args);
 

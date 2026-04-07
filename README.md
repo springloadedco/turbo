@@ -6,7 +6,7 @@ Turbo is Springloaded's opinionated toolkit for AI-assisted Laravel development.
 
 ### Superpowers Workflow
 
-Turbo includes the [Superpowers](https://github.com/obra/superpowers) plugin, which provides a structured development workflow through slash commands:
+Turbo installs [Superpowers](https://github.com/obra/superpowers) during setup, which provides a structured development workflow through slash commands:
 
 ```
 /brainstorming ──> /writing-plans ──> /executing-plans ──> Review
@@ -28,7 +28,7 @@ Other superpowers activate automatically when relevant — test-driven developme
 
 ### Docker Sandbox
 
-**Docker Sandbox** lets you run Claude in an isolated environment with your project workspace mounted, so agents can work freely without touching your local machine. Build the sandbox image once, then launch interactive sessions or fire off one-shot prompts from the command line.
+**Docker Sandbox** lets you run Claude in an isolated environment with your project workspace mounted, so agents can work freely without touching your local machine. The pre-built sandbox image includes PHP 8.4, Composer, Node 22, Chromium, and fixes for native binary corruption during npm install — just launch and go.
 
 ### Feedback Loops
 
@@ -73,7 +73,7 @@ Composer will automatically symlink the local directory, so changes are reflecte
 
 ## Getting Started
 
-Run the install command to configure skills, set up a GitHub token, and build the Docker sandbox:
+Run the install command to configure skills, set up a GitHub token, and create the Docker sandbox:
 
 ```bash
 php artisan turbo:install
@@ -122,10 +122,11 @@ Turbo ships skills organized into groups. During `turbo:install` you pick which 
 | `github-labels` | Consistent label taxonomy (type/priority) |
 | `github-milestone` | Well-structured milestones grouping related issues |
 
-**Third-party integrations** (opt-in):
+**Third-party integrations** — installed by default:
 
 | Skill | Description |
 |-------|-------------|
+| `superpowers` | [Superpowers](https://github.com/obra/superpowers) — brainstorming, plan writing, subagent-driven development, code review, TDD, and more (14 skills) |
 | `agent-browser` | Browser automation via [vercel-labs/agent-browser](https://agent-browser.dev/) |
 
 ## Configuration
@@ -183,6 +184,8 @@ The config also includes Docker sandbox settings:
 | `turbo:doctor` | Run a health check on the sandbox environment |
 
 ### Docker Sandbox
+
+Turbo uses the [sbx CLI](https://docs.docker.com/reference/cli/sbx/) to manage sandboxes. See the [Docker Sandboxes documentation](https://docs.docker.com/ai/sandboxes/) for more details.
 
 Turbo publishes a pre-built sandbox image to Docker Hub as [`springloadedco/turbo`](https://hub.docker.com/r/springloadedco/turbo), based on `docker/sandbox-templates:claude-code` with PHP 8.4, common extensions, Composer, Node.js 22, and Chromium pre-installed.
 

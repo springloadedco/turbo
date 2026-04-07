@@ -95,6 +95,10 @@ sbx exec -d <name> bash -c "echo 'export FOO=bar' >> /etc/sandbox-persistent.sh"
 ```
 This stores the value inside the VM — less secure than proxy-injected secrets.
 
+**Turbo's GitHub token handling:** `turbo:install` stores the token in two places:
+1. `.claude/settings.local.json` as `GH_TOKEN` env var — used by the `gh` credential helper for git operations
+2. `sbx secret set <sandbox> github -t <token>` — sets a per-sandbox secret so the proxy uses the scoped token instead of the user's global `gh auth token`
+
 #### Host Access Patterns
 
 From inside a sandbox, to reach services on the host machine:
@@ -220,12 +224,15 @@ For **custom hostnames** (e.g. Laravel Herd/Valet routing `myapp.test` → host)
 #### sbx Commands
 - `sbx run <name> -- <args>` — args after `--` go to `claude` CLI
 - `-p "prompt"` sends a **prompt** to Claude (natural language)
-- `plugin marketplace add ...` is a **CLI subcommand**, not a prompt — pass directly without `-p`
 - Don't use try-then-fallback pattern for sandbox existence — command failures inside an existing sandbox are indistinguishable from "sandbox not found." Use `sandboxExists()` check instead.
 
-#### Idempotent Plugin Install
-- `claude plugin marketplace add` fails with exit 1 if marketplace already installed
-- Treat "already installed" as success, not failure — check error output for "already installed" string
+#### Superpowers
+- Superpowers is installed as a third-party skill via `npx skills add obra/superpowers` during `turbo:install`
+- It is NOT installed via the Claude Code plugin marketplace — the marketplace approach was fragile
+- The `.claude/settings.json` in this repo has `enabledPlugins` for development of the Turbo package itself; consumer projects get superpowers via npx skills
 
 #### Docker Build UX
 - `--progress=quiet` suppresses all output — use `ProgressIndicator` spinner with `start()`/`advance()` pattern instead of `run()` with output callback
+
+#### Git SSH→HTTPS Rewriting
+- The Dockerfile configures `git config --system url."https://github.com/".insteadOf "git@github.com:"` so tools that default to SSH (e.g. Claude Code plugin installer) use the HTTPS credential helper instead of missing SSH keys
