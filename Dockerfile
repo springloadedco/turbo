@@ -3,7 +3,7 @@ FROM docker/sandbox-templates:claude-code
 USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php8.4-sqlite3 php-mysql \
+  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php-mysql \
   unzip ca-certificates chromium-browser \
   && rm -rf /var/lib/apt/lists/*
 
@@ -21,9 +21,12 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
 RUN npm install -g agent-browser
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Configure gh as git credential helper so git clone works with GH_TOKEN at runtime
+# Configure gh as git credential helper so git clone works with GH_TOKEN at runtime.
+# Rewrite SSH URLs to HTTPS so tools that default to SSH (e.g. Claude Code plugin
+# installer) use the credential helper instead of missing SSH keys.
 RUN git config --system credential.https://github.com.helper '!/usr/bin/gh auth git-credential' \
-  && git config --system credential.https://gist.github.com.helper '!/usr/bin/gh auth git-credential'
+  && git config --system credential.https://gist.github.com.helper '!/usr/bin/gh auth git-credential' \
+  && git config --system url."https://github.com/".insteadOf "git@github.com:"
 
 # Sandbox preparation script (host access)
 COPY docker/setup-sandbox.sh /usr/local/bin/setup-sandbox

@@ -6,7 +6,7 @@ Turbo is Springloaded's opinionated toolkit for AI-assisted Laravel development.
 
 ### Superpowers Workflow
 
-Turbo includes the [Superpowers](https://github.com/obra/superpowers) plugin, which provides a structured development workflow through slash commands:
+Turbo installs [Superpowers](https://github.com/obra/superpowers) during setup, which provides a structured development workflow through slash commands:
 
 ```
 /brainstorming ──> /writing-plans ──> /executing-plans ──> Review
@@ -28,7 +28,7 @@ Other superpowers activate automatically when relevant — test-driven developme
 
 ### Docker Sandbox
 
-**Docker Sandbox** lets you run Claude in an isolated environment with your project workspace mounted, so agents can work freely without touching your local machine. Build the sandbox image once, then launch interactive sessions or fire off one-shot prompts from the command line.
+**Docker Sandbox** lets you run Claude in an isolated environment with your project workspace mounted, so agents can work freely without touching your local machine. The pre-built sandbox image includes PHP 8.4, Composer, Node 22, Chromium, and fixes for native binary corruption during npm install — just launch and go.
 
 ### Feedback Loops
 
@@ -39,7 +39,7 @@ Other superpowers activate automatically when relevant — test-driven developme
 - PHP 8.4+
 - Laravel 11 or 12
 - Node.js / npm (required for `npx skills`)
-- Docker Desktop 4.61+ (required for sandbox commands)
+- sbx CLI (required for sandbox commands -- `brew install docker/tap/sbx`)
 
 ## Installation
 
@@ -73,7 +73,7 @@ Composer will automatically symlink the local directory, so changes are reflecte
 
 ## Getting Started
 
-Run the install command to configure skills, set up a GitHub token, and build the Docker sandbox:
+Run the install command to configure skills, set up a GitHub token, and create the Docker sandbox:
 
 ```bash
 php artisan turbo:install
@@ -95,19 +95,39 @@ php artisan turbo:skills
 
 ## Skills
 
-Turbo publishes the following skills to your project:
+Turbo ships skills organized into groups. During `turbo:install` you pick which groups to install; individual skills within each group can be customized.
+
+**Laravel patterns** — opinionated Laravel development conventions:
 
 | Skill | Description |
 |-------|-------------|
-| `laravel-actions` | Business logic encapsulation patterns |
 | `laravel-controllers` | Invokable controller patterns with Inertia |
-| `laravel-testing` | Pest/PHPUnit testing best practices |
+| `laravel-actions` | Business logic encapsulation patterns |
 | `laravel-validation` | Form Request validation patterns |
+| `laravel-testing` | Pest/PHPUnit testing best practices |
 | `laravel-inertia` | TypeScript page component patterns |
-| `github-issue` | Create atomic GitHub issues for agent execution |
-| `github-labels` | Apply consistent labels to GitHub issues |
-| `github-milestone` | Create well-structured GitHub milestones |
-| `github-pr-comment` | Add progress comments to PRs during agent execution |
+
+**Project utilities** — installed by default:
+
+| Skill | Description |
+|-------|-------------|
+| `feedback-loops` | Enforces project verification commands before claiming work done, committing, or opening a PR |
+| `agent-captures` | Standardizes agent-browser screenshot/PDF/video output locations |
+
+**GitHub workflow** (opt-in):
+
+| Skill | Description |
+|-------|-------------|
+| `github-issue` | Atomic issue creation with verifiable acceptance criteria |
+| `github-labels` | Consistent label taxonomy (type/priority) |
+| `github-milestone` | Well-structured milestones grouping related issues |
+
+**Third-party integrations** — installed by default:
+
+| Skill | Description |
+|-------|-------------|
+| `superpowers` | [Superpowers](https://github.com/obra/superpowers) — brainstorming, plan writing, subagent-driven development, code review, TDD, and more (14 skills) |
+| `agent-browser` | Browser automation via [vercel-labs/agent-browser](https://agent-browser.dev/) |
 
 ## Configuration
 
@@ -131,22 +151,20 @@ This creates `config/turbo.php` where you can configure feedback loops — the v
 ],
 ```
 
-Remove or add commands to match your project's toolchain. These are rendered into skill templates via the `{{ $feedback_loops }}` and `{{ $feedback_loops_checklist }}` placeholders.
+Remove or add commands to match your project's toolchain. The `feedback-loops` skill uses these commands to enforce that agents verify their work before claiming tasks complete. They're rendered into skill templates via the `{{ $feedback_loops }}` and `{{ $feedback_loops_checklist }}` placeholders at install time.
 
 The config also includes Docker sandbox settings:
 
 ```php
 'docker' => [
-    'image'      => env('TURBO_DOCKER_IMAGE', 'turbo'),
-    'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
-    'workspace'  => env('TURBO_DOCKER_WORKSPACE', base_path()),
+    'image'     => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:latest'),
+    'workspace' => env('TURBO_DOCKER_WORKSPACE', base_path()),
 ],
 ```
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `image` | Docker image tag used for build and run | `turbo` |
-| `dockerfile` | Path to a custom Dockerfile (falls back to the one shipped with Turbo) | `null` |
+| `image` | Fully-qualified OCI registry image for the sandbox template | `docker.io/springloadedco/turbo:latest` |
 | `workspace` | Local directory mounted into the sandbox | `base_path()` |
 
 ## Commands
@@ -155,18 +173,45 @@ The config also includes Docker sandbox settings:
 |---------|-------------|
 | `turbo:install` | Set up Turbo for your project (see [Getting Started](#getting-started)) |
 | `turbo:skills` | Re-publish Turbo skills after a package update |
-| `turbo:build` | Build the Docker sandbox image |
-| `turbo:claude` | Start an interactive Claude session in the Docker sandbox |
-| `turbo:prompt {prompt}` | Run Claude with a one-off prompt in the Docker sandbox |
+| `turbo:claude` | Start an interactive Claude session in the sandbox |
+| `turbo:prompt {prompt}` | Run Claude with a one-off prompt in the sandbox |
+| `turbo:exec {command}` | Execute a command inside the sandbox |
+| `turbo:prepare` | Configure sandbox host access (/etc/hosts + policy) |
+| `turbo:ports` | List, publish, or unpublish sandbox ports |
+| `turbo:start` | Start the sandbox (without attaching) |
+| `turbo:stop` | Stop the sandbox (preserving state) |
+| `turbo:rm` | Remove the sandbox and all its state |
+| `turbo:doctor` | Run a health check on the sandbox environment |
 
 ### Docker Sandbox
 
-Turbo ships a Dockerfile based on `docker/sandbox-templates:claude-code` with PHP 8.4, common extensions, and Composer pre-installed.
+Turbo uses the [sbx CLI](https://docs.docker.com/reference/cli/sbx/) to manage sandboxes. See the [Docker Sandboxes documentation](https://docs.docker.com/ai/sandboxes/) for more details.
 
-**Build the image:**
+Turbo publishes a pre-built sandbox image to Docker Hub as [`springloadedco/turbo`](https://hub.docker.com/r/springloadedco/turbo), based on `docker/sandbox-templates:claude-code` with PHP 8.4, common extensions, Composer, Node.js 22, and Chromium pre-installed.
+
+Most users don't need to build anything — `turbo:install` uses the published image by default and sbx pulls it from Docker Hub.
+
+**Extending the image:**
+
+If your project needs additional tools, create a Dockerfile in your project root:
+
+```dockerfile
+FROM springloadedco/turbo:latest
+USER root
+RUN apt-get update && apt-get install -y redis-tools
+USER agent
+```
+
+Set your own registry image in `.env`:
+
+```
+TURBO_DOCKER_IMAGE=docker.io/my-org/my-sandbox:latest
+```
+
+Then build and push with Docker:
 
 ```bash
-php artisan turbo:build
+docker build --push -t docker.io/my-org/my-sandbox:latest .
 ```
 
 **Start an interactive Claude session:**
@@ -191,7 +236,6 @@ When working on Turbo itself, use `bin/turbo` to run commands via Orchestra Test
 
 ```bash
 bin/turbo install    # turbo:install
-bin/turbo build      # turbo:build
 bin/turbo claude     # turbo:claude
 bin/turbo prompt "…" # turbo:prompt
 ```
@@ -214,7 +258,7 @@ Then allow the project's `.envrc`:
 direnv allow
 ```
 
-After that, `turbo claude`, `turbo build`, etc. work directly whenever you're in the project directory.
+After that, `turbo claude`, `turbo prompt "…"`, etc. work directly whenever you're in the project directory.
 
 ## Testing
 

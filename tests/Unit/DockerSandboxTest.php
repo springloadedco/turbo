@@ -3,13 +3,6 @@
 use Springloaded\Turbo\Services\DockerSandbox;
 use Symfony\Component\Process\Process;
 
-it('returns the correct dockerfile path', function () {
-    $sandbox = app(DockerSandbox::class);
-
-    expect(basename($sandbox->dockerfile))->toBe('Dockerfile');
-    expect(file_exists($sandbox->dockerfile))->toBeTrue();
-});
-
 it('uses static default image name', function () {
     $sandbox = app(DockerSandbox::class);
 
@@ -32,16 +25,14 @@ it('creates a create process with correct command', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('create')
-        ->toContain('-t')
+        ->toContain('--template')
         ->toContain('turbo')
         ->toContain('--name')
         ->toContain('claude-cpbc')
         ->toContain('claude')
-        ->toContain('/Users/dev/Sites/cpbc')
-        ->not->toContain('--load-local-template');
+        ->toContain('/Users/dev/Sites/cpbc');
 });
 
 it('creates a remove process with correct command', function () {
@@ -52,10 +43,67 @@ it('creates a remove process with correct command', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('rm')
         ->toContain('claude-cpbc');
+});
+
+it('creates a stop process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->stopProcess();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('stop')
+        ->toContain('claude-cpbc');
+});
+
+it('creates a ports list process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->portsProcess();
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->not->toContain('--publish')
+        ->not->toContain('--unpublish');
+});
+
+it('creates a publish port process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->publishPortProcess('8080:8000');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->toContain('--publish')
+        ->toContain('8080:8000');
+});
+
+it('creates an unpublish port process with correct command', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->unpublishPortProcess('8080:8000');
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->toContain('--unpublish')
+        ->toContain('8080:8000');
 });
 
 it('ensureSandboxExists returns true when sandbox already exists', function () {
@@ -90,21 +138,6 @@ it('ensureSandboxExists returns false when creation fails', function () {
     expect($sandbox->ensureSandboxExists())->toBeFalse();
 });
 
-it('creates a build process with correct command', function () {
-    $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->buildProcess();
-
-    $commandLine = $process->getCommandLine();
-    expect($commandLine)
-        ->toContain('docker')
-        ->toContain('build')
-        ->toContain('--progress=quiet')
-        ->toContain('-t')
-        ->toContain('turbo')
-        ->toContain('-f')
-        ->toContain('Dockerfile');
-});
-
 it('creates an exec process with correct command', function () {
     config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
 
@@ -113,31 +146,11 @@ it('creates an exec process with correct command', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('exec')
         ->toContain('claude-cpbc')
         ->toContain('bash')
         ->toContain('echo hello');
-});
-
-it('interactiveProcess ensures sandbox exists and returns simple run command', function () {
-    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
-    $sandbox->image = 'turbo';
-    $sandbox->workspace = '/Users/dev/Sites/cpbc';
-    $sandbox->shouldReceive('ensureSandboxExists')->once()->andReturn(true);
-    $sandbox->shouldReceive('prepareSandbox')->once();
-
-    $process = $sandbox->interactiveProcess();
-
-    $commandLine = $process->getCommandLine();
-    expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
-        ->toContain('run')
-        ->toContain('claude-cpbc')
-        ->not->toContain('--load-local-template')
-        ->not->toContain('create');
 });
 
 it('promptProcess ensures sandbox exists and returns simple run command', function () {
@@ -145,20 +158,17 @@ it('promptProcess ensures sandbox exists and returns simple run command', functi
     $sandbox->image = 'turbo';
     $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('ensureSandboxExists')->once()->andReturn(true);
-    $sandbox->shouldReceive('prepareSandbox')->once();
 
     $process = $sandbox->promptProcess('Hello Claude');
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('run')
         ->toContain('claude-cpbc')
         ->toContain('--')
         ->toContain('-p')
         ->toContain('Hello Claude')
-        ->not->toContain('--load-local-template')
         ->not->toContain('create');
 });
 
@@ -252,12 +262,10 @@ it('creates proxy bypass process for a host on port 80', function () {
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
+        ->toContain('policy')
+        ->toContain('allow')
         ->toContain('network')
-        ->toContain('proxy')
-        ->toContain('claude-cpbc')
-        ->toContain('--bypass-host')
         ->toContain('app.test:80');
 });
 
@@ -283,8 +291,7 @@ it('creates prepareSandboxProcess with workspace and host entries', function () 
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
-        ->toContain('docker')
-        ->toContain('sandbox')
+        ->toContain('sbx')
         ->toContain('exec')
         ->toContain('setup-sandbox')
         ->toContain('/Users/dev/Sites/cpbc')

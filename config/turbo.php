@@ -25,25 +25,17 @@ return [
         | Image Name
         |--------------------------------------------------------------------------
         |
-        | The tag used when building the sandbox image and the template name
-        | passed to `docker sandbox run`.
+        | The fully-qualified OCI registry image passed to `sbx create --template`.
+        | sbx pulls templates from registries — the local Docker image store is not
+        | shared with the sbx daemon.
+        |
+        | The default uses the published springloadedco/turbo image from Docker Hub.
+        | To extend the image, create a Dockerfile with
+        |   FROM springloadedco/turbo:latest
+        | then build/push it and set your own registry image here.
         |
         */
-        'image' => env('TURBO_DOCKER_IMAGE', 'turbo'),
-
-        /*
-        |--------------------------------------------------------------------------
-        | Dockerfile Path
-        |--------------------------------------------------------------------------
-        |
-        | Path to the Dockerfile used to build the sandbox image. The directory
-        | containing the Dockerfile is used as the build context.
-        |
-        | By default, this uses the Dockerfile from the Turbo package. You can
-        | override this to use a custom Dockerfile in your application.
-        |
-        */
-        'dockerfile' => env('TURBO_DOCKER_DOCKERFILE'),
+        'image' => env('TURBO_DOCKER_IMAGE', 'docker.io/springloadedco/turbo:latest'),
 
         /*
         |--------------------------------------------------------------------------

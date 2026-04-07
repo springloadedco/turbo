@@ -22,9 +22,13 @@ This is a Laravel package that provides AI guidelines, skills, and tools for Spr
 This package registers artisan commands in `src/Commands/`. In a consumer Laravel project, they are called with `php artisan <command>`. When developing this package, use `bin/turbo` which wraps Orchestra Testbench:
 
 - `bin/turbo install` - Install/configure Turbo in a project
-- `bin/turbo build` - Build the Docker sandbox template
 - `bin/turbo claude` - Launch interactive Claude session in a sandbox
 - `bin/turbo prompt {prompt}` - Send a one-shot prompt to Claude in a sandbox
+- `bin/turbo exec {command}` - Execute arbitrary commands inside the sandbox
+- `bin/turbo prepare` - Configure sandbox host access (/etc/hosts + policy)
+- `bin/turbo ports` - List / publish / unpublish sandbox ports
+- `bin/turbo start` / `bin/turbo stop` / `bin/turbo rm` - Sandbox lifecycle
+- `bin/turbo doctor` - Diagnose sandbox environment health
 - `bin/turbo skills` - Manage AI skills (not useful during package development — publishes skills to the Testbench workbench directory, not a real project)
 
 ### Package Structure
@@ -48,109 +52,187 @@ The `.ai/skills/` directory contains Laravel development patterns that get publi
 
 Uses Pest with Orchestra Testbench. Run `composer test`.
 
-### Docker Sandbox Commands Reference
+### sbx CLI Reference
+
+**Authoritative docs** (always consult before speculating about sbx capabilities):
+- CLI reference: https://docs.docker.com/reference/cli/sbx/
+- Sandboxes manual: https://docs.docker.com/ai/sandboxes/
+- Custom environments: https://docs.docker.com/ai/sandboxes/agents/custom-environments/
+- Network policy: https://docs.docker.com/reference/cli/sbx/policy/
+- Isolation & security: https://docs.docker.com/ai/sandboxes/security/
+
+Install: `brew install docker/tap/sbx`
+
+#### sbx Capability Matrix
+
+**Supported on `sbx create` / `sbx run`:**
+- `--template <image>` — custom container image (pulled from an OCI registry)
+- `--name <name>` — custom sandbox name (default: `<agent>-<workdir>`)
+- `--branch <name>` — Git worktree on a branch (`--branch auto` on `run` to auto-generate)
+- `-m, --memory <size>` — memory limit (e.g. `8g`; default ~50% host memory, max 32 GiB)
+- Workspace positional args — mount host paths at the **same absolute path** in the sandbox (append `:ro` for read-only; multiple paths supported)
+
+**NOT supported on create/run** — handle differently:
+- `--env` / `--env-file` → use `sbx secret set` for supported services, or write to `/etc/sandbox-persistent.sh` via `sbx exec` for custom env vars
+- `--add-host` → modify `/etc/hosts` via `sbx exec` or bake into a custom template
+- `--volume` / `--mount` → only workspace positional args; no arbitrary remapping
+- `--publish` / `-p` → use `sbx ports <name> --publish <spec>` post-creation
+- `--dns` / `--hostname` → DNS resolution is handled by the host proxy, not the sandbox
+- `--cpus` / `--user` / `--entrypoint` → not supported
+
+#### Secret Injection Model
+
+sbx secrets are **not** env vars inside the VM — they're injected at the network layer as HTTP auth headers by the host proxy:
+
+- **Supported services** (proxy-injected, raw value never enters VM): `anthropic`, `aws`, `github`, `google`, `groq`, `mistral`, `nebius`, `openai`, `xai`
+- Set globally: `sbx secret set -g <service> -t <token>` (applies at sandbox creation time)
+- Set per-sandbox: `sbx secret set <name> <service> -t <token>` (takes effect immediately)
+- **Global secret changes require sandbox recreation** to take effect; per-sandbox updates are live.
+
+For **custom env vars** (unsupported services), write to `/etc/sandbox-persistent.sh` inside the VM:
+```bash
+sbx exec -d <name> bash -c "echo 'export FOO=bar' >> /etc/sandbox-persistent.sh"
+```
+This stores the value inside the VM — less secure than proxy-injected secrets.
+
+**Turbo's GitHub token handling:** `turbo:install` stores the token in two places:
+1. `.claude/settings.local.json` as `GH_TOKEN` env var — used by the `gh` credential helper for git operations
+2. `sbx secret set <sandbox> github -t <token>` — sets a per-sandbox secret so the proxy uses the scoped token instead of the user's global `gh auth token`
+
+#### Host Access Patterns
+
+From inside a sandbox, to reach services on the host machine:
+
+1. Use `host.docker.internal` (resolves to host; proxy auto-translates to `localhost`)
+2. Allowlist the port: `sbx policy allow network localhost:11434`
+3. `curl http://host.docker.internal:11434/...` now works
+
+For **custom hostnames** (e.g. Laravel Herd/Valet routing `myapp.test` → host): sbx has **no native `/etc/hosts` support**. Options: (a) modify via `sbx exec sudo tee -a /etc/hosts` at install time, (b) bake into a custom template, (c) use `host.docker.internal` + `Host:` header. Turbo uses option (a) via `turbo:prepare`.
 
 #### Main Commands
 
-**`docker sandbox create [OPTIONS] AGENT WORKSPACE`**
+**`sbx create [OPTIONS] AGENT WORKSPACE`**
 - Create a sandbox with access to a host workspace for an agent
-- Available agents: `claude`, `cagent`, `codex`, `copilot`, `gemini`, `kiro`
+- Available agents: `claude`, `codex`, `copilot`, `docker-agent`, `gemini`, `kiro`, `opencode`, `shell`
 - Workspace path is required and exposed inside sandbox at same path as host
 - Options:
   - `--name string` - Custom sandbox name (default: `<agent>-<workdir>`)
-  - `-t, --template string` - Custom container image for sandbox
-  - `--load-local-template` - Load locally built template image
-  - `-q, --quiet` - Suppress verbose output
-  - `-D, --debug` - Enable debug logging
+  - `--template string` - Custom container image for sandbox
+  - `--branch string` - Create a Git worktree on the given branch
+  - `-m, --memory string` - Memory limit (e.g., `1024m`, `8g`)
 
-**`docker sandbox run SANDBOX [-- AGENT_ARGS...] | AGENT WORKSPACE [-- AGENT_ARGS...]`**
+**`sbx run <AGENT> [WORKSPACE] [-- AGENT_ARGS...] | SANDBOX [-- AGENT_ARGS...]`**
 - Run an agent in a sandbox; creates sandbox if it doesn't exist
+- Workspace defaults to current directory if omitted
 - Pass agent arguments after `--` separator
 - Examples:
-  - `docker sandbox run claude .` - Create/run sandbox with claude in current dir
-  - `docker sandbox run existing-sandbox` - Run existing sandbox
-  - `docker sandbox run claude . -- -p "What version are you running?"` - Run with agent args
-- Options: same as `create` command
+  - `sbx run claude` - Create/run sandbox with claude in current dir
+  - `sbx run existing-sandbox` - Run existing sandbox
+  - `sbx run claude . -- -p "What version are you running?"` - Run with agent args
+  - `sbx run --branch my-feature claude` - Run on an isolated git worktree branch
+- Options: same as `create` command, plus `--branch`
 
-**`docker sandbox exec [OPTIONS] SANDBOX COMMAND [ARG...]`**
+**`sbx exec [OPTIONS] SANDBOX COMMAND [ARG...]`**
 - Execute a command in an existing sandbox
 - Options:
   - `-i, --interactive` - Keep STDIN open
   - `-t, --tty` - Allocate a pseudo-TTY
-  - `-d, --detach` - Run in background
-  - `-e, --env stringArray` - Set environment variables
-  - `--env-file stringArray` - Read environment variables from file
-  - `-u, --user string` - Username or UID
-  - `-w, --workdir string` - Working directory inside container
-  - `--privileged` - Give extended privileges
 
-**`docker sandbox ls [OPTIONS]`**
-- List all VMs and their sandboxes
-- Aliases: `list`
+**`sbx ls`**
+- List all sandboxes with status
 - Options:
-  - `-q, --quiet` - Only display VM names
-  - `--json` - Output in JSON format
-  - `--no-trunc` - Don't truncate output
+  - `-q, --quiet` - Only display sandbox names
 
-**`docker sandbox rm SANDBOX [SANDBOX...]`**
+**`sbx rm SANDBOX [SANDBOX...]`**
 - Remove one or more sandboxes and all associated resources
-- Aliases: `remove`
+- Options:
+  - `--all` - Remove all sandboxes
 
-**`docker sandbox stop SANDBOX [SANDBOX...]`**
+**`sbx stop SANDBOX [SANDBOX...]`**
 - Stop one or more sandboxes without removing them
 - Sandboxes can be restarted later
 
-**`docker sandbox reset [OPTIONS]`**
-- Reset all VM sandboxes and permanently delete all VM data
-- ⚠️ WARNING: Destructive operation - stops all VMs, deletes state, clears registries
+**`sbx ports SANDBOX [OPTIONS]`**
+- List, publish, or unpublish sandbox ports
+- Services inside the sandbox must bind to `0.0.0.0` (not `127.0.0.1`) to be reachable
 - Options:
-  - `-f, --force` - Skip confirmation prompt
+  - `--publish [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]` - Publish a port
+  - `--unpublish [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]` - Unpublish a port
+- Default host IP: `127.0.0.1`. Default protocol: `tcp`.
+- Examples:
+  - `sbx ports claude-myapp --publish 8080:8000` - Publish sandbox's 8000 on host's 8080
+  - `sbx ports claude-myapp --publish 127.0.0.1:5173:5173` - Bind to loopback
+  - `sbx ports claude-myapp` - List published ports
 
-**`docker sandbox save SANDBOX TAG [OPTIONS]`**
+**`sbx reset [OPTIONS]`**
+- Reset all sandboxes and permanently delete all data
+- Options:
+  - `--preserve-secrets` - Keep stored secrets
+
+**`sbx save SANDBOX TAG [OPTIONS]`**
 - Save a snapshot of sandbox as a template
 - Examples:
-  - `docker sandbox save my-sandbox myimage:v1.0` - Load into host Docker
-  - `docker sandbox save my-sandbox myimage:v1.0 --output /tmp/myimage.tar` - Save to file
+  - `sbx save my-sandbox myimage:v1.0` - Load into host Docker
+  - `sbx save my-sandbox myimage:v1.0 --output /tmp/myimage.tar` - Save to file
 - Options:
   - `-o, --output string` - Save to tar file instead of loading into Docker
 
-**`docker sandbox network log [OPTIONS]`**
-- Show network logs
-- Options:
-  - `--json` - Output in JSON format
-  - `--limit int` - Maximum number of log entries to show
-  - `-q, --quiet` - Only display log entries
+**`sbx policy allow network <hosts>`**
+- Allow network access to specific domains
+- Examples:
+  - `sbx policy allow network registry.npmjs.org`
+  - `sbx policy allow network "*.example.com:443,example.com:443"`
+  - `sbx policy allow network localhost:11434` - Allow access to host services
 
-**`docker sandbox network proxy <sandbox> [OPTIONS]`**
-- Manage proxy configuration for a sandbox
-- Options:
-  - `--policy allow|deny` - Set default policy
-  - `--allow-host string` - Permit access to domain/IP (can be specified multiple times)
-  - `--allow-cidr string` - Remove IP range from block/bypass lists (can be specified multiple times)
-  - `--block-host string` - Block access to domain/IP (can be specified multiple times)
-  - `--block-cidr string` - Block access to IP range in CIDR notation (can be specified multiple times)
-  - `--bypass-host string` - Bypass proxy for domain/IP (can be specified multiple times)
-  - `--bypass-cidr string` - Bypass proxy for IP range in CIDR notation (can be specified multiple times)
+**`sbx policy ls`**
+- Display active network access rules
 
-**`docker sandbox version`**
-- Show sandbox version information
+**`sbx policy reset`**
+- Restore default network policy
+
+**`sbx secret set [OPTIONS] <service>`**
+- Store credentials in OS keychain for injection into sandboxes
+- Examples:
+  - `sbx secret set -g anthropic` - Set Anthropic API key
+  - `sbx secret set -g github -t "$(gh auth token)"` - Set GitHub token
+
+**`sbx login`**
+- Docker OAuth sign-in via browser
+
+**`sbx version`**
+- Show version information
 
 ### Docker Sandbox Patterns
 
-#### Symfony Process: TTY vs PTY
-- `setTty(true)` — connects real terminal stdin/stdout/stderr directly. Use for **interactive** sessions (e.g. `turbo:claude`)
-- `setPty(true)` — creates pseudo-terminal for output capture. Use for **non-interactive** command execution (e.g. `turbo:prompt`, `runCommand`)
-- Check `isTtySupported()` before `setTty()`, `isPtySupported()` before `setPty()`
+#### Image Registry Requirement
+- sbx uses a separate Docker daemon that does NOT share the local image store
+- Templates must be pulled from an OCI registry (Docker Hub, GHCR, etc.)
+- Default image: `docker.io/springloadedco/turbo:latest` — published via CI
+- For custom images, build and push with Docker directly: `docker build --push -t <your-image> .`
 
-#### Docker Sandbox Commands
-- `docker sandbox run <name> -- <args>` — args after `--` go to `claude` CLI
+#### Symfony Process: TTY vs PTY vs pcntl_exec
+- `pcntl_exec()` — replaces the PHP process with the child. Use for **fully-interactive TUIs** (Claude Code, bash) because Symfony's `setTty(true)` does NOT properly allocate a pty for them (causes exit 137 SIGKILL after welcome screen renders). See `DockerSandbox::runInteractive()`.
+- `setPty(true)` — creates pseudo-terminal for output capture. Use for **non-interactive** command execution that needs streaming output (e.g. `turbo:prompt`).
+- `setTty(true)` — connects real terminal stdin/stdout/stderr directly. Works for simple commands but NOT for Ink/Textual-based TUIs.
+- Check `isTtySupported()` / `isPtySupported()` before calling.
+
+#### Don't run `sbx exec` before `sbx run` in the same PHP process
+- Running `sbx exec` via Symfony Process immediately before `sbx run` via `pcntl_exec` causes the claude agent to be SIGKILL'd (exit 137) after rendering its welcome screen.
+- Root cause unclear — likely sbx's session lifecycle interacts badly with the rapid exec-then-run sequence from PHP.
+- Fix: do any `sbx exec` prep steps at sandbox creation time (`turbo:install`) or via a separate artisan command (`turbo:prepare`), not before `turbo:claude`.
+
+#### sbx Commands
+- `sbx run <name> -- <args>` — args after `--` go to `claude` CLI
 - `-p "prompt"` sends a **prompt** to Claude (natural language)
-- `plugin marketplace add ...` is a **CLI subcommand**, not a prompt — pass directly without `-p`
 - Don't use try-then-fallback pattern for sandbox existence — command failures inside an existing sandbox are indistinguishable from "sandbox not found." Use `sandboxExists()` check instead.
 
-#### Idempotent Plugin Install
-- `claude plugin marketplace add` fails with exit 1 if marketplace already installed
-- Treat "already installed" as success, not failure — check error output for "already installed" string
+#### Superpowers
+- Superpowers is installed as a third-party skill via `npx skills add obra/superpowers` during `turbo:install`
+- It is NOT installed via the Claude Code plugin marketplace — the marketplace approach was fragile
+- The `.claude/settings.json` in this repo has `enabledPlugins` for development of the Turbo package itself; consumer projects get superpowers via npx skills
 
 #### Docker Build UX
 - `--progress=quiet` suppresses all output — use `ProgressIndicator` spinner with `start()`/`advance()` pattern instead of `run()` with output callback
+
+#### Git SSH→HTTPS Rewriting
+- The Dockerfile configures `git config --system url."https://github.com/".insteadOf "git@github.com:"` so tools that default to SSH (e.g. Claude Code plugin installer) use the HTTPS credential helper instead of missing SSH keys

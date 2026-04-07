@@ -24,12 +24,38 @@ class InstallCommand extends Command
     public $description = 'Set up Turbo for your project';
 
     /**
-     * Recommended third-party skills to offer during install.
+     * Skill groups offered during install, in display order.
      *
-     * @var array<array{name: string, source: string}>
+     * - `prefix` is the label shown in the multiselect (padded for alignment).
+     * - `skills` lists turbo-bundled skills (strings) or third-party skills (arrays with name/source).
+     * - `defaultEnabled` controls whether the group is pre-checked on a fresh install.
+     *
+     * @var array<string, array{prefix: string, skills: array<string|array{name: string, source: string, skill?: string}>, defaultEnabled: bool}>
      */
-    protected array $recommendedSkills = [
-        ['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser'],
+    protected array $skillGroups = [
+        'laravel' => [
+            'prefix' => 'Laravel',
+            'skills' => ['laravel-controllers', 'laravel-actions', 'laravel-validation', 'laravel-testing', 'laravel-inertia'],
+            'defaultEnabled' => true,
+        ],
+        'project' => [
+            'prefix' => 'Project',
+            'skills' => ['feedback-loops', 'agent-captures'],
+            'defaultEnabled' => true,
+        ],
+        'github' => [
+            'prefix' => 'GitHub',
+            'skills' => ['github-issue', 'github-labels', 'github-milestone'],
+            'defaultEnabled' => false,
+        ],
+        'thirdParty' => [
+            'prefix' => '3rd-party',
+            'skills' => [
+                ['name' => 'superpowers', 'source' => 'obra/superpowers', 'skill' => '*'],
+                ['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser'],
+            ],
+            'defaultEnabled' => true,
+        ],
     ];
 
     public function __construct(
@@ -46,7 +72,6 @@ class InstallCommand extends Command
             '--tag' => 'turbo-config',
         ]);
 
-        // Step 1: Detect and configure feedback loops
         $this->configureFeedbackLoops();
 
         if (! $this->checkNpxAvailable()) {
@@ -56,7 +81,6 @@ class InstallCommand extends Command
             return self::FAILURE;
         }
 
-        // Step 1: Skill selection
         $selectedSkills = $this->selectSkills();
 
         if (empty($selectedSkills['turbo']) && empty($selectedSkills['thirdParty'])) {
@@ -65,7 +89,6 @@ class InstallCommand extends Command
             return self::SUCCESS;
         }
 
-        // Step 2: Agent selection
         $selectedAgents = $this->selectAgents();
 
         if (empty($selectedAgents)) {
@@ -73,8 +96,6 @@ class InstallCommand extends Command
 
             return self::SUCCESS;
         }
-
-        // Step 3: Install skills
         if (! empty($selectedSkills['turbo'])) {
             $this->info('Installing Turbo skills...');
 
@@ -99,7 +120,7 @@ class InstallCommand extends Command
 
             $exitCode = $this->runNpxSkillsAdd(
                 $skill['source'],
-                [$skill['name']],
+                [$skill['skill'] ?? $skill['name']],
                 $selectedAgents
             );
 
@@ -186,50 +207,158 @@ class InstallCommand extends Command
     }
 
     /**
-     * Prompt user to select which skills to install.
+     * Prompt user to select skills via a flat multiselect with grouped labels.
      *
-     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
+     * Options are labeled `Group › skill-name` (padded), with already-installed
+     * skills marked `(installed)` and smart per-group defaults.
+     *
+     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string, skill?: string}>}
      */
     protected function selectSkills(): array
     {
-        $turboSkills = $this->skills->getAvailableSkills();
+        $installed = $this->skills->getInstalledSkillNames();
+        $flat = $this->flattenSkills();
 
-        // Build choices: turbo skills + recommended third-party
-        $choices = [];
-        foreach ($turboSkills as $skill) {
-            $choices["turbo:{$skill}"] = "{$skill}";
-        }
-        foreach ($this->recommendedSkills as $skill) {
-            $choices["recommended:{$skill['name']}"] = "{$skill['name']} (recommended)";
+        if (! $this->input->isInteractive()) {
+            $selected = $this->defaultSelectedKeys($flat, $installed);
+
+            return $this->partitionByKeys($flat, $selected);
         }
 
-        if ($this->input->isInteractive()) {
-            $selected = multiselect(
-                label: 'Which skills would you like to install?',
-                options: $choices,
-                default: array_keys($choices),
-            );
-        } else {
-            $selected = array_keys($choices);
+        $options = [];
+        $defaults = $this->defaultSelectedKeys($flat, $installed);
+        $prefixWidth = $this->prefixWidth();
+
+        foreach ($flat as $key => $entry) {
+            $prefix = str_pad($entry['prefix'], $prefixWidth);
+            $name = $entry['name'];
+            $suffix = in_array($name, $installed, true) ? ' (installed)' : '';
+            $options[$key] = "{$prefix} › {$name}{$suffix}";
         }
 
-        // Split selections back into turbo vs third-party
-        $turboSelected = [];
-        $thirdPartySelected = [];
+        $selected = multiselect(
+            label: 'Which skills would you like to install?',
+            options: $options,
+            default: $defaults,
+            scroll: 15,
+        );
 
-        foreach ($selected as $key) {
-            if (str_starts_with($key, 'turbo:')) {
-                $turboSelected[] = str_replace('turbo:', '', $key);
-            } elseif (str_starts_with($key, 'recommended:')) {
-                $name = str_replace('recommended:', '', $key);
-                $skill = collect($this->recommendedSkills)->firstWhere('name', $name);
-                if ($skill) {
-                    $thirdPartySelected[] = $skill;
-                }
+        return $this->partitionByKeys($flat, $selected);
+    }
+
+    /**
+     * Flatten skillGroups into a single indexed list with group metadata.
+     *
+     * Returns a map of unique keys (e.g. 'laravel:laravel-controllers') to
+     * entries describing each skill's group context.
+     *
+     * @return array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string, skill?: string}}>
+     */
+    protected function flattenSkills(): array
+    {
+        $flat = [];
+
+        foreach ($this->skillGroups as $groupKey => $group) {
+            foreach ($group['skills'] as $skill) {
+                $name = $this->skillName($skill);
+                $flat["{$groupKey}:{$name}"] = [
+                    'prefix' => $group['prefix'],
+                    'group' => $groupKey,
+                    'name' => $name,
+                    'definition' => $skill,
+                ];
             }
         }
 
-        return ['turbo' => $turboSelected, 'thirdParty' => $thirdPartySelected];
+        return $flat;
+    }
+
+    /**
+     * Compute default-selected skill keys.
+     *
+     * A skill is default-checked if it's already installed, or if its group
+     * is default-enabled.
+     *
+     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string, skill?: string}}>  $flat
+     * @param  array<string>  $installed
+     * @return array<string>
+     */
+    protected function defaultSelectedKeys(array $flat, array $installed): array
+    {
+        // Determine which groups already have at least one installed skill.
+        $groupHasInstalled = [];
+        foreach ($flat as $entry) {
+            if (in_array($entry['name'], $installed, true)) {
+                $groupHasInstalled[$entry['group']] = true;
+            }
+        }
+
+        $defaults = [];
+
+        foreach ($flat as $key => $entry) {
+            $group = $this->skillGroups[$entry['group']];
+            $isInstalled = in_array($entry['name'], $installed, true);
+
+            // On first install (nothing installed in this group), use defaultEnabled.
+            // On re-runs, only preselect what's actually installed.
+            $isFirstInstall = ! isset($groupHasInstalled[$entry['group']]);
+
+            if ($isInstalled || ($isFirstInstall && $group['defaultEnabled'])) {
+                $defaults[] = $key;
+            }
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * Partition selected keys back into turbo + thirdParty buckets.
+     *
+     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string, skill?: string}}>  $flat
+     * @param  array<string>  $selected
+     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string, skill?: string}>}
+     */
+    protected function partitionByKeys(array $flat, array $selected): array
+    {
+        $turbo = [];
+        $thirdParty = [];
+
+        foreach ($selected as $key) {
+            if (! isset($flat[$key])) {
+                continue;
+            }
+
+            $definition = $flat[$key]['definition'];
+
+            if (is_array($definition)) {
+                $thirdParty[] = $definition;
+            } else {
+                $turbo[] = $definition;
+            }
+        }
+
+        return ['turbo' => $turbo, 'thirdParty' => $thirdParty];
+    }
+
+    /**
+     * Width of the longest group prefix, for padding labels.
+     */
+    protected function prefixWidth(): int
+    {
+        return max(array_map(
+            fn (array $group): int => mb_strlen($group['prefix']),
+            $this->skillGroups,
+        ));
+    }
+
+    /**
+     * Extract the skill name from a string or definition array.
+     *
+     * @param  string|array{name: string, source: string, skill?: string}  $skill
+     */
+    protected function skillName(string|array $skill): string
+    {
+        return is_array($skill) ? $skill['name'] : $skill;
     }
 
     /**
@@ -356,6 +485,16 @@ class InstallCommand extends Command
 
         $this->writeSettings($settingsPath, $settings);
         $this->info('GitHub token configured.');
+
+        if ($this->sbxAvailable()) {
+            $sandbox = app(DockerSandbox::class);
+            $process = new Process(['sbx', 'secret', 'set', $sandbox->sandboxName(), 'github', '-t', $token]);
+            $process->run();
+
+            if ($process->isSuccessful()) {
+                $this->info('GitHub token set as sandbox secret.');
+            }
+        }
     }
 
     /**
@@ -408,10 +547,17 @@ class InstallCommand extends Command
      */
     protected function configureDockerImage(): void
     {
-        $default = 'turbo/'.basename(base_path());
+        $default = 'docker.io/springloadedco/turbo:latest';
+
+        $this->newLine();
+        $this->line('The default image includes PHP 8.4, Composer, Node 22, Chromium,');
+        $this->line('and fixes for native binary corruption during npm install.');
+        $this->line('To customize, extend with <comment>FROM springloadedco/turbo:latest</comment>');
+        $this->line('and push to a registry.');
+        $this->newLine();
 
         $image = text(
-            label: 'Docker image name',
+            label: 'Docker image',
             default: $default,
             required: true,
         );
@@ -419,6 +565,20 @@ class InstallCommand extends Command
         $this->writeDockerImageToConfig($image);
 
         config(['turbo.docker.image' => $image]);
+    }
+
+    /**
+     * Check if the configured image is the published springloadedco/turbo image.
+     *
+     * When using the published image, turbo:build is not needed since sbx
+     * pulls it directly from Docker Hub.
+     */
+    protected function isPublishedImage(): bool
+    {
+        $image = config('turbo.docker.image', '');
+
+        return str_starts_with($image, 'docker.io/springloadedco/turbo:')
+            || str_starts_with($image, 'springloadedco/turbo:');
     }
 
     /**
@@ -444,7 +604,10 @@ class InstallCommand extends Command
     }
 
     /**
-     * Ask if the user wants to set up Docker sandbox.
+     * Set up the Docker sandbox if sbx is available and no sandbox exists yet.
+     *
+     * Skips with an informative message when sbx is not installed or when a
+     * sandbox for this project already exists.
      */
     protected function offerDockerSetup(): void
     {
@@ -452,46 +615,32 @@ class InstallCommand extends Command
             return;
         }
 
-        $wantsDocker = confirm(
-            label: 'Set up Docker sandbox? (builds the Turbo sandbox image)',
-            default: true,
-        );
+        if (! $this->sbxAvailable()) {
+            $this->newLine();
+            $this->line('Note: sbx CLI not installed. Skipping Docker sandbox.');
+            $this->line('  Install with: brew install docker/tap/sbx');
 
-        if (! $wantsDocker) {
             return;
         }
 
-        // Configure image name
-        $this->configureDockerImage();
-
-        // Step 1: Build the image
-        $exitCode = $this->call('turbo:build');
-
-        if ($exitCode !== self::SUCCESS) {
-            return;
-        }
-
-        // Step 2: Create the sandbox
         $sandbox = app(DockerSandbox::class);
 
         if ($sandbox->sandboxExists()) {
-            $rebuild = confirm(
-                label: "Sandbox '{$sandbox->sandboxName()}' already exists. Rebuild it?",
-                default: false,
-            );
+            $this->newLine();
+            $this->info("✓ Sandbox '{$sandbox->sandboxName()}' already exists.");
+            $this->line('  Run `php artisan turbo:doctor` to verify state.');
 
-            if (! $rebuild) {
-                return;
-            }
+            return;
+        }
 
-            $this->info('Removing existing sandbox...');
-            $removeProcess = $sandbox->removeProcess();
-            $removeProcess->run();
+        $this->configureDockerImage();
 
-            if (! $removeProcess->isSuccessful()) {
-                $this->error('Failed to remove sandbox.');
-                $this->line($removeProcess->getErrorOutput());
+        if (! $this->isPublishedImage()) {
+            $this->warn('Custom image selected. Make sure it is built and pushed to your registry before continuing.');
+            $this->line('  docker build --push -t '.config('turbo.docker.image').' .');
+            $this->newLine();
 
+            if (! confirm(label: 'Image is pushed and ready?', default: true)) {
                 return;
             }
         }
@@ -507,58 +656,18 @@ class InstallCommand extends Command
             return;
         }
 
-        // Step 3: Authenticate Claude inside the sandbox
-        // $this->authenticateSandbox($sandbox);
-
-        // Step 4: Install plugins
-        $this->installSandboxPlugins($sandbox);
+        $this->info('Preparing sandbox...');
+        $sandbox->prepareSandbox();
     }
 
     /**
-     * Launch an interactive Claude session for the user to authenticate.
-     *
-     * The user runs /login inside the session, then exits.
-     * After the session closes, the sandbox is authenticated.
+     * Check whether the sbx CLI is on the PATH.
      */
-    protected function authenticateSandbox(DockerSandbox $sandbox): void
+    protected function sbxAvailable(): bool
     {
-        $this->newLine();
-        $this->info('Launching Claude session for authentication...');
-        $this->newLine();
-
-        $prompt = 'Welcome! To complete the Turbo installation, please authenticate your Claude account. '
-            .'Run /login to begin authentication, complete the browser flow, then run /exit when you\'re done.';
-
-        $process = $sandbox->interactiveProcess(['-p', $prompt]);
+        $process = new Process(['which', 'sbx']);
         $process->run();
-    }
 
-    /**
-     * Install superpowers plugins into the sandbox.
-     */
-    protected function installSandboxPlugins(DockerSandbox $sandbox): void
-    {
-        $this->info('Installing sandbox plugins...');
-
-        $outputCallback = fn ($type, $buffer) => $this->output->write($buffer);
-
-        $result = $sandbox->runCommand(
-            ['plugin', 'marketplace', 'add', 'obra/superpowers-marketplace'],
-            $outputCallback,
-        );
-
-        $resultOutput = $result->getErrorOutput().$result->getOutput();
-
-        if (! $result->isSuccessful() && ! str_contains($resultOutput, 'already installed')) {
-            $this->warn('Failed to install marketplace plugin. You may need to authenticate first.');
-            $this->line('Run <comment>turbo:claude</comment> and use <comment>/login</comment> to authenticate.');
-
-            return;
-        }
-
-        $sandbox->runCommand(
-            ['plugin', 'install', 'superpowers@superpowers-marketplace'],
-            $outputCallback,
-        );
+        return $process->isSuccessful();
     }
 }

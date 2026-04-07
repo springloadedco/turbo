@@ -9,15 +9,11 @@ class DockerSandbox
 {
     public string $image;
 
-    public string $dockerfile;
-
     public string $workspace;
 
     public function __construct()
     {
         $this->image = config('turbo.docker.image');
-        $this->dockerfile = config('turbo.docker.dockerfile')
-            ?? $this->getPackageDockerfilePath();
         $this->workspace = config('turbo.docker.workspace');
     }
 
@@ -63,9 +59,9 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to bypass the sandbox proxy for a host.
+     * Create a process to allow network access for a host.
      *
-     * Restricts bypass to port 80 by default for minimal attack surface.
+     * Restricts to port 80 by default for minimal attack surface.
      * Hosts with explicit ports (e.g. 'api.test:8080') are preserved.
      */
     public function proxyBypassProcess(string $host): Process
@@ -75,16 +71,14 @@ class DockerSandbox
         }
 
         return $this->process([
-            'docker', 'sandbox', 'network', 'proxy',
-            $this->sandboxName(),
-            '--bypass-host', $host,
+            'sbx', 'policy', 'allow', 'network', $host,
         ]);
     }
 
     /**
      * Resolve the host machine's IP address from inside the sandbox.
      *
-     * Uses `docker sandbox exec` to resolve host.docker.internal.
+     * Uses `sbx exec` to resolve host.docker.internal.
      */
     public function resolveHostIp(): ?string
     {
@@ -101,8 +95,8 @@ class DockerSandbox
     /**
      * Create a process to prepare the sandbox environment.
      *
-     * Runs the setup script which handles node_modules isolation
-     * and /etc/hosts entries for host dev server access.
+     * Runs the setup script which handles /etc/hosts entries
+     * for host dev server access.
      */
     public function prepareSandboxProcess(): Process
     {
@@ -149,7 +143,7 @@ class DockerSandbox
      */
     public function sandboxExists(): bool
     {
-        $process = new Process(['docker', 'sandbox', 'ls', '-q']);
+        $process = new Process(['sbx', 'ls', '-q']);
         $process->run();
 
         if (! $process->isSuccessful()) {
@@ -169,8 +163,8 @@ class DockerSandbox
     public function createProcess(): Process
     {
         return $this->process([
-            'docker', 'sandbox', 'create',
-            '-t', $this->image,
+            'sbx', 'create',
+            '--template', $this->image,
             '--name', $this->sandboxName(),
             'claude',
             $this->workspace,
@@ -183,8 +177,56 @@ class DockerSandbox
     public function removeProcess(): Process
     {
         return $this->process([
-            'docker', 'sandbox', 'rm',
+            'sbx', 'rm',
             $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Create a process to stop the sandbox (preserving state).
+     */
+    public function stopProcess(): Process
+    {
+        return $this->process([
+            'sbx', 'stop',
+            $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Create a process to list published ports for the sandbox.
+     */
+    public function portsProcess(): Process
+    {
+        return $this->process([
+            'sbx', 'ports',
+            $this->sandboxName(),
+        ]);
+    }
+
+    /**
+     * Create a process to publish a port spec.
+     *
+     * Spec format: [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]
+     */
+    public function publishPortProcess(string $spec): Process
+    {
+        return $this->process([
+            'sbx', 'ports',
+            $this->sandboxName(),
+            '--publish', $spec,
+        ]);
+    }
+
+    /**
+     * Create a process to unpublish a port spec.
+     */
+    public function unpublishPortProcess(string $spec): Process
+    {
+        return $this->process([
+            'sbx', 'ports',
+            $this->sandboxName(),
+            '--unpublish', $spec,
         ]);
     }
 
@@ -204,51 +246,72 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to build the sandbox image from the Dockerfile.
-     */
-    public function buildProcess(): Process
-    {
-        return $this->process([
-            'docker', 'build',
-            '--progress=quiet',
-            '-t', $this->image,
-            '-f', $this->dockerfile,
-            dirname($this->dockerfile),
-        ]);
-    }
-
-    /**
-     * Execute a command inside the sandbox via docker sandbox exec.
+     * Execute a command inside the sandbox via sbx exec.
      */
     public function execProcess(array $command): Process
     {
         return $this->process(array_merge([
-            'docker', 'sandbox', 'exec',
+            'sbx', 'exec',
             $this->sandboxName(),
         ], $command));
     }
 
     /**
-     * Create a TTY process for an interactive Claude session in the sandbox.
+     * Run an interactive Claude session in the sandbox.
+     *
+     * Uses pcntl_exec to replace the PHP process with sbx, giving sbx direct
+     * ownership of the terminal. Symfony Process's setTty(true) does not
+     * properly allocate a pty for fully-interactive TUIs like Claude Code,
+     * causing them to exit immediately.
+     *
+     * This method does not return — the PHP process becomes the sbx process.
      *
      * @param  array<string>  $claudeArgs  Optional arguments to pass to Claude CLI
      */
-    public function interactiveProcess(array $claudeArgs = []): Process
+    public function runInteractive(array $claudeArgs = []): never
     {
         $this->ensureSandboxExists();
-        $this->prepareSandbox();
 
-        $command = [
-            'docker', 'sandbox', 'run',
-            $this->sandboxName(),
-        ];
+        $args = ['run', $this->sandboxName()];
 
         if (! empty($claudeArgs)) {
-            $command[] = '--';
-            $command = array_merge($command, $claudeArgs);
+            $args[] = '--';
+            $args = array_merge($args, $claudeArgs);
         }
 
-        return $this->ttyProcess($command);
+        $this->execSbx($args);
+    }
+
+    /**
+     * Execute an interactive command inside the sandbox via sbx exec -it.
+     *
+     * Uses pcntl_exec for proper TTY handoff (same reason as runInteractive).
+     * This method does not return — the PHP process becomes the sbx process.
+     *
+     * @param  array<string>  $command
+     */
+    public function execInteractive(array $command): never
+    {
+        $args = ['exec', '-it', $this->sandboxName(), ...$command];
+
+        $this->execSbx($args);
+    }
+
+    /**
+     * Replace the current PHP process with sbx.
+     *
+     * @param  array<string>  $args
+     */
+    protected function execSbx(array $args): never
+    {
+        $which = new Process(['which', 'sbx']);
+        $which->run();
+        $sbxPath = $which->isSuccessful() ? trim($which->getOutput()) : 'sbx';
+
+        pcntl_exec($sbxPath, $args);
+
+        // pcntl_exec only returns if it fails
+        throw new \RuntimeException('Failed to exec sbx');
     }
 
     /**
@@ -257,63 +320,13 @@ class DockerSandbox
     public function promptProcess(string $prompt): Process
     {
         $this->ensureSandboxExists();
-        $this->prepareSandbox();
 
         return $this->ptyProcess([
-            'docker', 'sandbox', 'run',
+            'sbx', 'run',
             $this->sandboxName(),
             '--',
             '-p', $prompt,
         ]);
-    }
-
-    /**
-     * Run a prompt in the sandbox, creating it if necessary.
-     */
-    public function runPrompt(string $prompt, ?callable $output = null): Process
-    {
-        return $this->runInSandbox(['-p', $prompt], $output);
-    }
-
-    /**
-     * Run a Claude CLI command in the sandbox (e.g. plugin, config subcommands).
-     *
-     * Unlike runPrompt(), this passes arguments directly to the claude CLI
-     * instead of using the -p flag, so they're treated as subcommands.
-     */
-    public function runCommand(array $args, ?callable $output = null): Process
-    {
-        return $this->runInSandbox($args, $output);
-    }
-
-    /**
-     * Run arguments in the sandbox, creating it if it doesn't exist.
-     *
-     * @param  array<string>  $claudeArgs  Arguments passed to claude after --
-     */
-    protected function runInSandbox(array $claudeArgs, ?callable $output = null): Process
-    {
-        $this->ensureSandboxExists();
-        $this->prepareSandbox();
-
-        $command = array_merge([
-            'docker', 'sandbox', 'run',
-            $this->sandboxName(),
-            '--',
-        ], $claudeArgs);
-
-        $process = $this->ptyProcess($command);
-        $process->run($output);
-
-        return $process;
-    }
-
-    /**
-     * Get the path to the Dockerfile in the package.
-     */
-    protected function getPackageDockerfilePath(): string
-    {
-        return dirname(__DIR__, 2).'/Dockerfile';
     }
 
     /**
@@ -323,23 +336,6 @@ class DockerSandbox
     {
         $process = new Process($command);
         $process->setTimeout(null);
-
-        return $process;
-    }
-
-    /**
-     * Create a process with TTY for fully interactive sessions.
-     *
-     * TTY connects the real terminal's stdin/stdout/stderr directly,
-     * allowing interactive programs like Claude to work properly.
-     */
-    protected function ttyProcess(array $command): Process
-    {
-        $process = $this->process($command);
-
-        if (Process::isTtySupported()) {
-            $process->setTty(true);
-        }
 
         return $process;
     }

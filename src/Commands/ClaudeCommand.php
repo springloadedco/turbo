@@ -3,25 +3,17 @@
 namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
-use Springloaded\Turbo\Commands\Concerns\DisplaysCommands;
 use Springloaded\Turbo\Services\DockerSandbox;
 
 class ClaudeCommand extends Command
 {
-    use DisplaysCommands;
-
     protected $signature = 'turbo:claude';
 
-    protected $description = 'Start an interactive Claude session in the Docker sandbox';
+    protected $description = 'Start an interactive Claude session in the sandbox';
 
-    public function handle(DockerSandbox $sandbox): int
+    public function handle(DockerSandbox $sandbox): never
     {
-        $process = $sandbox->interactiveProcess();
-
-        $this->displayCommand($process);
-
-        $process->run();
-
-        return $process->isSuccessful() ? self::SUCCESS : self::FAILURE;
+        // runInteractive() replaces the PHP process via pcntl_exec.
+        $sandbox->runInteractive();
     }
 }

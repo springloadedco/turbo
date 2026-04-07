@@ -3,17 +3,15 @@
 namespace Springloaded\Turbo\Commands;
 
 use Illuminate\Console\Command;
-use Springloaded\Turbo\Commands\Concerns\DisplaysCommands;
+use Illuminate\Support\Str;
 use Springloaded\Turbo\Services\DockerSandbox;
 use Symfony\Component\Console\Helper\ProgressIndicator;
 
 class PromptCommand extends Command
 {
-    use DisplaysCommands;
-
     protected $signature = 'turbo:prompt {prompt : The prompt to send to Claude}';
 
-    protected $description = 'Run Claude with a prompt in the Docker sandbox';
+    protected $description = 'Run Claude with a prompt in the sandbox';
 
     public function handle(DockerSandbox $sandbox): int
     {
@@ -21,7 +19,7 @@ class PromptCommand extends Command
 
         $process = $sandbox->promptProcess($prompt);
 
-        $this->displayCommand($process);
+        $this->info(Str::remove("'", $process->getCommandLine()));
 
         $process->start();
 
@@ -39,7 +37,13 @@ class PromptCommand extends Command
         $this->line($process->getOutput());
 
         if (! $process->isSuccessful()) {
+            $exitCode = $process->getExitCode();
             $this->error($process->getErrorOutput());
+
+            if ($exitCode === 137) {
+                $this->warn('The Claude agent was killed (exit 137). You may need to authenticate first.');
+                $this->line('Run <comment>turbo:claude</comment> and use <comment>/login</comment> to authenticate.');
+            }
 
             return self::FAILURE;
         }
