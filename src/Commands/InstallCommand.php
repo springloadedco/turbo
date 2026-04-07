@@ -30,7 +30,7 @@ class InstallCommand extends Command
      * - `skills` lists turbo-bundled skills (strings) or third-party skills (arrays with name/source).
      * - `defaultEnabled` controls whether the group is pre-checked on a fresh install.
      *
-     * @var array<string, array{prefix: string, skills: array<string|array{name: string, source: string}>, defaultEnabled: bool}>
+     * @var array<string, array{prefix: string, skills: array<string|array{name: string, source: string, skill?: string}>, defaultEnabled: bool}>
      */
     protected array $skillGroups = [
         'laravel' => [
@@ -51,7 +51,7 @@ class InstallCommand extends Command
         'thirdParty' => [
             'prefix' => '3rd-party',
             'skills' => [
-                ['name' => 'superpowers', 'source' => 'obra/superpowers'],
+                ['name' => 'superpowers', 'source' => 'obra/superpowers', 'skill' => '*'],
                 ['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser'],
             ],
             'defaultEnabled' => false,
@@ -120,7 +120,7 @@ class InstallCommand extends Command
 
             $exitCode = $this->runNpxSkillsAdd(
                 $skill['source'],
-                [$skill['name']],
+                [$skill['skill'] ?? $skill['name']],
                 $selectedAgents
             );
 
@@ -212,7 +212,7 @@ class InstallCommand extends Command
      * Options are labeled `Group › skill-name` (padded), with already-installed
      * skills marked `(installed)` and smart per-group defaults.
      *
-     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
+     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string, skill?: string}>}
      */
     protected function selectSkills(): array
     {
@@ -252,7 +252,7 @@ class InstallCommand extends Command
      * Returns a map of unique keys (e.g. 'laravel:laravel-controllers') to
      * entries describing each skill's group context.
      *
-     * @return array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string}}>
+     * @return array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string, skill?: string}}>
      */
     protected function flattenSkills(): array
     {
@@ -279,7 +279,7 @@ class InstallCommand extends Command
      * A skill is default-checked if it's already installed, or if its group
      * is default-enabled.
      *
-     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string}}>  $flat
+     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string, skill?: string}}>  $flat
      * @param  array<string>  $installed
      * @return array<string>
      */
@@ -302,9 +302,9 @@ class InstallCommand extends Command
     /**
      * Partition selected keys back into turbo + thirdParty buckets.
      *
-     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string}}>  $flat
+     * @param  array<string, array{prefix: string, group: string, name: string, definition: string|array{name: string, source: string, skill?: string}}>  $flat
      * @param  array<string>  $selected
-     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string}>}
+     * @return array{turbo: array<string>, thirdParty: array<array{name: string, source: string, skill?: string}>}
      */
     protected function partitionByKeys(array $flat, array $selected): array
     {
@@ -342,7 +342,7 @@ class InstallCommand extends Command
     /**
      * Extract the skill name from a string or definition array.
      *
-     * @param  string|array{name: string, source: string}  $skill
+     * @param  string|array{name: string, source: string, skill?: string}  $skill
      */
     protected function skillName(string|array $skill): string
     {
