@@ -54,7 +54,7 @@ class InstallCommand extends Command
                 ['name' => 'superpowers', 'source' => 'obra/superpowers', 'skill' => '*'],
                 ['name' => 'agent-browser', 'source' => 'vercel-labs/agent-browser'],
             ],
-            'defaultEnabled' => false,
+            'defaultEnabled' => true,
         ],
     ];
 
@@ -285,13 +285,25 @@ class InstallCommand extends Command
      */
     protected function defaultSelectedKeys(array $flat, array $installed): array
     {
+        // Determine which groups already have at least one installed skill.
+        $groupHasInstalled = [];
+        foreach ($flat as $entry) {
+            if (in_array($entry['name'], $installed, true)) {
+                $groupHasInstalled[$entry['group']] = true;
+            }
+        }
+
         $defaults = [];
 
         foreach ($flat as $key => $entry) {
             $group = $this->skillGroups[$entry['group']];
             $isInstalled = in_array($entry['name'], $installed, true);
 
-            if ($isInstalled || $group['defaultEnabled']) {
+            // On first install (nothing installed in this group), use defaultEnabled.
+            // On re-runs, only preselect what's actually installed.
+            $isFirstInstall = ! isset($groupHasInstalled[$entry['group']]);
+
+            if ($isInstalled || ($isFirstInstall && $group['defaultEnabled'])) {
                 $defaults[] = $key;
             }
         }

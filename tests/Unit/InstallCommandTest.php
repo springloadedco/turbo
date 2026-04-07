@@ -96,10 +96,11 @@ it('installs all skills to all agents in non-interactive mode', function () {
     $this->artisan('turbo:install', ['--no-interaction' => true])
         ->assertSuccessful();
 
-    // Non-interactive installs the default-enabled groups only (laravel + project).
-    // GitHub and third-party groups are opt-in interactively.
-    expect($capturedCalls)->toHaveCount(1);
+    // Non-interactive installs all default-enabled groups: turbo, project, and third-party.
+    // GitHub group is opt-in interactively.
+    expect($capturedCalls)->toHaveCount(3);
 
+    // First call: Turbo skills
     expect($capturedCalls[0]['source'])->toEndWith('.ai/skills');
     expect($capturedCalls[0]['skills'])->toContain('laravel-controllers');
     expect($capturedCalls[0]['skills'])->toContain('laravel-actions');
@@ -107,7 +108,15 @@ it('installs all skills to all agents in non-interactive mode', function () {
     expect($capturedCalls[0]['skills'])->toContain('feedback-loops');
     expect($capturedCalls[0]['skills'])->toContain('agent-captures');
     expect($capturedCalls[0]['skills'])->not->toContain('github-issue');
-    expect($capturedCalls[0]['skills'])->not->toContain('agent-browser');
+
+    // Second call: superpowers (all skills)
+    expect($capturedCalls[1]['source'])->toBe('obra/superpowers');
+    expect($capturedCalls[1]['skills'])->toBe(['*']);
+
+    // Third call: agent-browser
+    expect($capturedCalls[2]['source'])->toBe('vercel-labs/agent-browser');
+    expect($capturedCalls[2]['skills'])->toBe(['agent-browser']);
+
     expect($capturedCalls[0]['agents'])->toBe(['claude-code', 'cursor', 'codex', 'github-copilot']);
 });
 
