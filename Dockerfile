@@ -3,7 +3,8 @@ FROM docker/sandbox-templates:claude-code
 USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php-mysql \
+  php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php-mysql php-gd \
+  php-redis php-pgsql php-imagick php-memcached \
   unzip ca-certificates chromium-browser \
   && rm -rf /var/lib/apt/lists/*
 
