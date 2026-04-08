@@ -234,5 +234,11 @@ For **custom hostnames** (e.g. Laravel Herd/Valet routing `myapp.test` → host)
 #### Docker Build UX
 - `--progress=quiet` suppresses all output — use `ProgressIndicator` spinner with `start()`/`advance()` pattern instead of `run()` with output callback
 
+#### Chromium / agent-browser
+- The apt `chromium-browser` package on ARM64 Ubuntu is a non-functional snap stub — do NOT use it
+- Chromium is installed via Playwright (`npx playwright install --with-deps chromium`) to `/opt/chromium`, symlinked to `/usr/local/bin/chromium`
+- `AGENT_BROWSER_EXECUTABLE_PATH=/usr/local/bin/chromium` is set in the Dockerfile
+- When modifying the Dockerfile, verify agent-browser still works: build the image, then run `docker run --rm --user agent <image> agent-browser batch "open file:///dev/null" "screenshot"`
+
 #### Git SSH→HTTPS Rewriting
 - The Dockerfile configures `git config --system url."https://github.com/".insteadOf "git@github.com:"` so tools that default to SSH (e.g. Claude Code plugin installer) use the HTTPS credential helper instead of missing SSH keys
