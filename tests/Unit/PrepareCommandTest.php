@@ -14,7 +14,9 @@ it('fails when sandbox does not exist', function () {
         ->assertFailed();
 });
 
-it('calls prepareSandbox when sandbox exists', function () {
+it('calls prepareSandbox and prints the OAuth callback port when sandbox exists', function () {
+    config()->set('turbo.oauth.callback_port', 33418);
+
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
@@ -23,5 +25,6 @@ it('calls prepareSandbox when sandbox exists', function () {
     app()->instance(DockerSandbox::class, $sandbox);
 
     $this->artisan('turbo:prepare')
+        ->expectsOutputToContain('OAuth callback relay listening on localhost:33418')
         ->assertSuccessful();
 });
