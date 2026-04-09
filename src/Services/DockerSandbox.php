@@ -252,6 +252,22 @@ class DockerSandbox
     }
 
     /**
+     * Set up the MCP OAuth callback path for this sandbox.
+     *
+     * Publishes the callback port host→sandbox and starts the relay
+     * daemon inside the sandbox. Both steps are idempotent and safe to
+     * re-run; failures of the publish step (already published) are
+     * intentionally ignored.
+     */
+    public function setupOauthRelay(): void
+    {
+        $port = (int) config('turbo.oauth.callback_port', 33418);
+
+        $this->publishOauthPortProcess($port)->run();
+        $this->startOauthRelayProcess($port)->run();
+    }
+
+    /**
      * Create a process to unpublish a port spec.
      */
     public function unpublishPortProcess(string $spec): Process

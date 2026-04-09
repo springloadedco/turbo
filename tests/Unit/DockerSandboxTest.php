@@ -139,6 +139,38 @@ it('creates a start OAuth relay process that runs socat in background via sbx ex
         ->toContain('pgrep');
 });
 
+it('setupOauthRelay publishes the configured port and starts the relay', function () {
+    config()->set('turbo.oauth.callback_port', 33418);
+
+    $publishProcess = Mockery::mock(Process::class);
+    $publishProcess->shouldReceive('run')->once();
+
+    $relayProcess = Mockery::mock(Process::class);
+    $relayProcess->shouldReceive('run')->once();
+
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->shouldReceive('publishOauthPortProcess')->with(33418)->once()->andReturn($publishProcess);
+    $sandbox->shouldReceive('startOauthRelayProcess')->with(33418)->once()->andReturn($relayProcess);
+
+    $sandbox->setupOauthRelay();
+});
+
+it('setupOauthRelay reads the port from config', function () {
+    config()->set('turbo.oauth.callback_port', 9999);
+
+    $publishProcess = Mockery::mock(Process::class);
+    $publishProcess->shouldReceive('run')->once();
+
+    $relayProcess = Mockery::mock(Process::class);
+    $relayProcess->shouldReceive('run')->once();
+
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->shouldReceive('publishOauthPortProcess')->with(9999)->once()->andReturn($publishProcess);
+    $sandbox->shouldReceive('startOauthRelayProcess')->with(9999)->once()->andReturn($relayProcess);
+
+    $sandbox->setupOauthRelay();
+});
+
 it('ensureSandboxExists returns true when sandbox already exists', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
