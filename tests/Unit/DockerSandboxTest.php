@@ -106,6 +106,21 @@ it('creates an unpublish port process with correct command', function () {
         ->toContain('8080:8000');
 });
 
+it('creates a publish OAuth port process with same host and sandbox port', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->publishOauthPortProcess(33418);
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('ports')
+        ->toContain('claude-cpbc')
+        ->toContain('--publish')
+        ->toContain('33418:33418');
+});
+
 it('ensureSandboxExists returns true when sandbox already exists', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);

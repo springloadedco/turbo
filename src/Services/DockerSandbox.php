@@ -219,6 +219,18 @@ class DockerSandbox
     }
 
     /**
+     * Create a process to publish the MCP OAuth callback port.
+     *
+     * Publishes the same port number on host and sandbox so the OAuth
+     * provider's redirect URI (http://localhost:PORT/callback) routes
+     * from the host browser into the sandbox.
+     */
+    public function publishOauthPortProcess(int $port): Process
+    {
+        return $this->publishPortProcess("{$port}:{$port}");
+    }
+
+    /**
      * Create a process to unpublish a port spec.
      */
     public function unpublishPortProcess(string $spec): Process
