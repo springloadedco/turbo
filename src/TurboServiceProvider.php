@@ -8,6 +8,7 @@ use Springloaded\Turbo\Commands\ClaudeCommand;
 use Springloaded\Turbo\Commands\DoctorCommand;
 use Springloaded\Turbo\Commands\ExecCommand;
 use Springloaded\Turbo\Commands\InstallCommand;
+use Springloaded\Turbo\Commands\Mcp\AddCommand as McpAddCommand;
 use Springloaded\Turbo\Commands\PortsCommand;
 use Springloaded\Turbo\Commands\PrepareCommand;
 use Springloaded\Turbo\Commands\PromptCommand;
@@ -40,6 +41,7 @@ class TurboServiceProvider extends PackageServiceProvider
                 RemoveCommand::class,
                 DoctorCommand::class,
                 SkillsCommand::class,
+                McpAddCommand::class,
             ]);
     }
 }
