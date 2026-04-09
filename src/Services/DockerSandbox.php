@@ -231,6 +231,27 @@ class DockerSandbox
     }
 
     /**
+     * Create a process to start the OAuth relay daemon inside the sandbox.
+     *
+     * Runs socat (via /usr/local/bin/turbo-oauth-relay from the image) as a
+     * detached background process. The relay listens on 0.0.0.0:PORT and
+     * forwards to 127.0.0.1:PORT, bridging the gap between sbx port
+     * publishing (which targets eth0) and Claude Code's localhost-only
+     * OAuth listener.
+     *
+     * Idempotent: pgrep skips the launch if a relay is already running.
+     */
+    public function startOauthRelayProcess(int $port): Process
+    {
+        $script = sprintf(
+            "pgrep -f 'turbo-oauth-relay' >/dev/null 2>&1 || (TURBO_OAUTH_PORT=%d nohup /usr/local/bin/turbo-oauth-relay >/tmp/turbo-oauth-relay.log 2>&1 &)",
+            $port
+        );
+
+        return $this->execProcess(['bash', '-lc', $script]);
+    }
+
+    /**
      * Create a process to unpublish a port spec.
      */
     public function unpublishPortProcess(string $spec): Process

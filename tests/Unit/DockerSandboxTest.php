@@ -121,6 +121,24 @@ it('creates a publish OAuth port process with same host and sandbox port', funct
         ->toContain('33418:33418');
 });
 
+it('creates a start OAuth relay process that runs socat in background via sbx exec', function () {
+    config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
+
+    $sandbox = app(DockerSandbox::class);
+    $process = $sandbox->startOauthRelayProcess(33418);
+
+    $commandLine = $process->getCommandLine();
+    expect($commandLine)
+        ->toContain('sbx')
+        ->toContain('exec')
+        ->toContain('claude-cpbc')
+        ->toContain('bash')
+        ->toContain('-lc')
+        ->toContain('turbo-oauth-relay')
+        ->toContain('TURBO_OAUTH_PORT=33418')
+        ->toContain('pgrep');
+});
+
 it('ensureSandboxExists returns true when sandbox already exists', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
