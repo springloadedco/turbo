@@ -63,4 +63,23 @@ return [
         'hosts' => [],
     ],
 
+    'oauth' => [
+        /*
+        |--------------------------------------------------------------------------
+        | Callback Port
+        |--------------------------------------------------------------------------
+        |
+        | The port Claude Code uses for MCP OAuth callbacks. This port is
+        | published from the sandbox to the host's localhost so the OAuth
+        | provider's redirect (http://localhost:PORT/callback) reaches the
+        | listener inside the sandbox. A socat relay inside the sandbox
+        | bridges 0.0.0.0:PORT to 127.0.0.1:PORT because Claude Code binds
+        | the OAuth listener to localhost only.
+        |
+        | Change this only if 33418 conflicts with something on your host.
+        |
+        */
+        'callback_port' => env('TURBO_OAUTH_CALLBACK_PORT', 33418),
+    ],
+
 ];
