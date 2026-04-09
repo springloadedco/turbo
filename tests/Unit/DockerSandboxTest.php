@@ -171,6 +171,18 @@ it('setupOauthRelay reads the port from config', function () {
     $sandbox->setupOauthRelay();
 });
 
+it('prepareSandbox calls setupOauthRelay after host setup', function () {
+    $prepareProcess = Mockery::mock(Process::class);
+    $prepareProcess->shouldReceive('run')->once();
+
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->shouldReceive('resolveHosts')->andReturn([]);
+    $sandbox->shouldReceive('prepareSandboxProcess')->andReturn($prepareProcess);
+    $sandbox->shouldReceive('setupOauthRelay')->once();
+
+    $sandbox->prepareSandbox();
+});
+
 it('ensureSandboxExists returns true when sandbox already exists', function () {
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);

@@ -136,6 +136,9 @@ class DockerSandbox
         $this->prepareSandboxProcess()->run(function (string $type, string $buffer): void {
             echo $buffer;
         });
+
+        // Set up the MCP OAuth callback relay (publish port + start socat)
+        $this->setupOauthRelay();
     }
 
     /**
