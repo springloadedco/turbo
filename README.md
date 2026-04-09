@@ -178,6 +178,7 @@ The config also includes Docker sandbox settings:
 | `turbo:exec {command}` | Execute a command inside the sandbox |
 | `turbo:prepare` | Configure sandbox host access (/etc/hosts + policy) |
 | `turbo:ports` | List, publish, or unpublish sandbox ports |
+| `turbo:mcp:add {name} {url}` | Register an OAuth MCP server with a pinned callback port |
 | `turbo:start` | Start the sandbox (without attaching) |
 | `turbo:stop` | Stop the sandbox (preserving state) |
 | `turbo:rm` | Remove the sandbox and all its state |
@@ -229,6 +230,18 @@ php artisan turbo:prompt "Write tests for the UserController"
 ```
 
 Sends the prompt to Claude inside the sandbox and streams the output back to your terminal.
+
+### OAuth MCP Servers
+
+Some MCP servers (Figma, Linear, etc.) use OAuth for authentication. Turbo pins Claude Code's OAuth callback port and runs a relay inside the sandbox so the host browser's OAuth redirect reaches the sandboxed Claude Code session.
+
+Register an OAuth MCP server:
+
+```bash
+php artisan turbo:mcp:add figma https://mcp.figma.com/mcp
+```
+
+Then run `php artisan turbo:claude` and use `/mcp` to complete OAuth in your browser. See `CLAUDE.md` for details on how the relay works.
 
 ## Development
 
