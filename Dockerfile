@@ -5,6 +5,7 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
   php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath php-sqlite3 php-mysql php-gd \
   php-redis php-pgsql php-imagick php-memcached \
+  socat \
   unzip ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
@@ -39,6 +40,10 @@ RUN git config --system credential.https://github.com.helper '!/usr/bin/gh auth 
 # Sandbox preparation script (host access)
 COPY docker/setup-sandbox.sh /usr/local/bin/setup-sandbox
 RUN chmod +x /usr/local/bin/setup-sandbox
+
+# OAuth callback relay (socat wrapper for MCP OAuth flows)
+COPY docker/turbo-oauth-relay.sh /usr/local/bin/turbo-oauth-relay
+RUN chmod +x /usr/local/bin/turbo-oauth-relay
 
 # Fix native binary corruption from workspace file sync
 COPY docker/fix-native-binaries.sh /usr/local/bin/fix-native-binaries
