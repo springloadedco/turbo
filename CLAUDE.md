@@ -207,7 +207,7 @@ For **custom hostnames** (e.g. Laravel Herd/Valet routing `myapp.test` → host)
 OAuth-based MCP servers (Figma, etc.) authenticate end-to-end inside the sandbox via the OAuth relay set up by `turbo:prepare`:
 
 1. The callback port is pinned via `config('turbo.oauth.callback_port')` (default 33418).
-2. `turbo:prepare` publishes that port host→sandbox with `sbx ports --publish` and starts a `socat` daemon inside the sandbox that bridges `0.0.0.0:PORT → 127.0.0.1:PORT` (Claude Code binds the OAuth listener to localhost only).
+2. `turbo:prepare` publishes the port pair `33418:33419` host→sandbox with `sbx ports --publish` and starts a `socat` daemon inside the sandbox that bridges `0.0.0.0:33419 → 127.0.0.1:33418`. The two ports must differ because Linux treats `0.0.0.0:PORT` and `127.0.0.1:PORT` as overlapping bindings — if the relay shared Claude Code's loopback port, Claude Code's OAuth listener bind would fail. The sandbox-internal relay port is derived as `callback_port + 1`.
 3. Register OAuth MCP servers with `php artisan turbo:mcp:add <name> <url>` — this wraps `claude mcp add --callback-port` with the pinned port automatically.
 
 When the OAuth provider redirects the host browser to `http://localhost:33418/callback`, the callback flows host → sbx port publish → socat relay → Claude Code listener inside the sandbox. No keychain extraction, no manual `.credentials.json` edits.

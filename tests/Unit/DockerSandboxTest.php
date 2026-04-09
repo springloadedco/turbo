@@ -106,11 +106,11 @@ it('creates an unpublish port process with correct command', function () {
         ->toContain('8080:8000');
 });
 
-it('creates a publish OAuth port process with same host and sandbox port', function () {
+it('creates a publish OAuth port process mapping host port to a different sandbox port', function () {
     config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
 
     $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->publishOauthPortProcess(33418);
+    $process = $sandbox->publishOauthPortProcess(33418, 33419);
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
@@ -118,14 +118,14 @@ it('creates a publish OAuth port process with same host and sandbox port', funct
         ->toContain('ports')
         ->toContain('claude-cpbc')
         ->toContain('--publish')
-        ->toContain('33418:33418');
+        ->toContain('33418:33419');
 });
 
-it('creates a start OAuth relay process that runs socat via sbx exec with a PID-file liveness check', function () {
+it('creates a start OAuth relay process with both listen and target ports', function () {
     config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
 
     $sandbox = app(DockerSandbox::class);
-    $process = $sandbox->startOauthRelayProcess(33418);
+    $process = $sandbox->startOauthRelayProcess(33419, 33418);
 
     $commandLine = $process->getCommandLine();
     expect($commandLine)
@@ -135,13 +135,14 @@ it('creates a start OAuth relay process that runs socat via sbx exec with a PID-
         ->toContain('bash')
         ->toContain('-lc')
         ->toContain('turbo-oauth-relay')
-        ->toContain('TURBO_OAUTH_PORT=33418')
+        ->toContain('TURBO_OAUTH_LISTEN_PORT=33419')
+        ->toContain('TURBO_OAUTH_TARGET_PORT=33418')
         ->toContain('/tmp/turbo-oauth-relay.pid')
         ->toContain('kill -0')
         ->not->toContain('pgrep');
 });
 
-it('setupOauthRelay publishes the configured port and starts the relay', function () {
+it('setupOauthRelay publishes the host:sandbox port pair and starts the relay', function () {
     config()->set('turbo.oauth.callback_port', 33418);
 
     $publishProcess = Mockery::mock(Process::class);
@@ -152,13 +153,13 @@ it('setupOauthRelay publishes the configured port and starts the relay', functio
     $relayProcess->shouldReceive('run')->once();
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
-    $sandbox->shouldReceive('publishOauthPortProcess')->with(33418)->once()->andReturn($publishProcess);
-    $sandbox->shouldReceive('startOauthRelayProcess')->with(33418)->once()->andReturn($relayProcess);
+    $sandbox->shouldReceive('publishOauthPortProcess')->with(33418, 33419)->once()->andReturn($publishProcess);
+    $sandbox->shouldReceive('startOauthRelayProcess')->with(33419, 33418)->once()->andReturn($relayProcess);
 
     expect($sandbox->setupOauthRelay())->toBeNull();
 });
 
-it('setupOauthRelay reads the port from config', function () {
+it('setupOauthRelay derives the relay port as callback_port + 1', function () {
     config()->set('turbo.oauth.callback_port', 9999);
 
     $publishProcess = Mockery::mock(Process::class);
@@ -169,8 +170,8 @@ it('setupOauthRelay reads the port from config', function () {
     $relayProcess->shouldReceive('run')->once();
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
-    $sandbox->shouldReceive('publishOauthPortProcess')->with(9999)->once()->andReturn($publishProcess);
-    $sandbox->shouldReceive('startOauthRelayProcess')->with(9999)->once()->andReturn($relayProcess);
+    $sandbox->shouldReceive('publishOauthPortProcess')->with(9999, 10000)->once()->andReturn($publishProcess);
+    $sandbox->shouldReceive('startOauthRelayProcess')->with(10000, 9999)->once()->andReturn($relayProcess);
 
     expect($sandbox->setupOauthRelay())->toBeNull();
 });
@@ -188,13 +189,14 @@ it('setupOauthRelay returns a warning string when publish fails but still starts
     $relayProcess->shouldReceive('run')->once();
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
-    $sandbox->shouldReceive('publishOauthPortProcess')->with(33418)->once()->andReturn($publishProcess);
-    $sandbox->shouldReceive('startOauthRelayProcess')->with(33418)->once()->andReturn($relayProcess);
+    $sandbox->shouldReceive('publishOauthPortProcess')->with(33418, 33419)->once()->andReturn($publishProcess);
+    $sandbox->shouldReceive('startOauthRelayProcess')->with(33419, 33418)->once()->andReturn($relayProcess);
 
     $warning = $sandbox->setupOauthRelay();
 
     expect($warning)->toBeString()
         ->and($warning)->toContain('33418')
+        ->and($warning)->toContain('33419')
         ->and($warning)->toContain('port already in use')
         ->and($warning)->toContain('sbx exited 1');
 });

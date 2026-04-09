@@ -226,35 +226,35 @@ class DockerSandbox
     }
 
     /**
-     * Create a process to publish the MCP OAuth callback port.
+     * Create a process to publish the MCP OAuth callback port pair.
      *
-     * Publishes the same port number on host and sandbox so the OAuth
-     * provider's redirect URI (http://localhost:PORT/callback) routes
-     * from the host browser into the sandbox.
+     * Maps host port → sandbox port. The two MUST differ from the
+     * loopback port Claude Code binds inside the sandbox, since Linux
+     * treats 0.0.0.0:PORT and 127.0.0.1:PORT as overlapping bindings.
      */
-    public function publishOauthPortProcess(int $port): Process
+    public function publishOauthPortProcess(int $hostPort, int $sandboxPort): Process
     {
-        return $this->publishPortProcess("{$port}:{$port}");
+        return $this->publishPortProcess("{$hostPort}:{$sandboxPort}");
     }
 
     /**
      * Create a process to start the OAuth relay daemon inside the sandbox.
      *
      * Runs socat (via /usr/local/bin/turbo-oauth-relay from the image) as a
-     * detached background process. The relay listens on 0.0.0.0:PORT and
-     * forwards to 127.0.0.1:PORT, bridging the gap between sbx port
-     * publishing (which targets eth0) and Claude Code's localhost-only
-     * OAuth listener.
+     * detached background process. The relay listens on 0.0.0.0:listenPort
+     * and forwards to 127.0.0.1:targetPort. The two ports must differ —
+     * see the relay script for details.
      *
      * Idempotent: a PID file at /tmp/turbo-oauth-relay.pid is checked
      * with `kill -0` to detect a live relay; the launch is skipped when
      * one is already running.
      */
-    public function startOauthRelayProcess(int $port): Process
+    public function startOauthRelayProcess(int $listenPort, int $targetPort): Process
     {
         $script = sprintf(
-            '(test -f /tmp/turbo-oauth-relay.pid && kill -0 "$(cat /tmp/turbo-oauth-relay.pid)" 2>/dev/null) || (TURBO_OAUTH_PORT=%d nohup /usr/local/bin/turbo-oauth-relay </dev/null >/dev/null 2>&1 &)',
-            $port
+            '(test -f /tmp/turbo-oauth-relay.pid && kill -0 "$(cat /tmp/turbo-oauth-relay.pid)" 2>/dev/null) || (TURBO_OAUTH_LISTEN_PORT=%d TURBO_OAUTH_TARGET_PORT=%d nohup /usr/local/bin/turbo-oauth-relay </dev/null >/dev/null 2>&1 &)',
+            $listenPort,
+            $targetPort
         );
 
         return $this->execProcess(['bash', '-lc', $script]);
@@ -263,20 +263,22 @@ class DockerSandbox
     /**
      * Set up the MCP OAuth callback path for this sandbox.
      *
-     * Publishes the callback port host→sandbox and starts the relay daemon
-     * inside the sandbox. The relay launch always runs.
+     * Publishes the host→sandbox port pair and starts the relay daemon
+     * inside the sandbox. The sandbox-internal relay port is derived as
+     * `callback_port + 1` so it cannot collide with Claude Code's
+     * loopback OAuth listener.
      *
-     * Returns null on success, or a warning message if the port publish
-     * step failed. Failures are surfaced (not swallowed) because we cannot
-     * reliably distinguish a benign "already published" re-run from a real
-     * conflict — the caller should display the warning so the user can
-     * investigate if OAuth flows fail.
+     * The relay launch always runs. Returns null on success, or a
+     * warning string if the port publish step failed (failures are
+     * surfaced because we cannot reliably distinguish a benign
+     * "already published" re-run from a real conflict).
      */
     public function setupOauthRelay(): ?string
     {
-        $port = (int) config('turbo.oauth.callback_port', 33418);
+        $callbackPort = (int) config('turbo.oauth.callback_port', 33418);
+        $relayPort = $callbackPort + 1;
 
-        $publish = $this->publishOauthPortProcess($port);
+        $publish = $this->publishOauthPortProcess($callbackPort, $relayPort);
         $publish->run();
 
         $warning = null;
@@ -284,14 +286,15 @@ class DockerSandbox
             $stderr = trim($publish->getErrorOutput());
             $detail = $stderr !== '' ? $stderr : 'no error output';
             $warning = sprintf(
-                'Could not publish OAuth callback port %d (sbx exited %d): %s. If the port was already published from a previous run this is harmless; otherwise OAuth flows will fail until resolved.',
-                $port,
+                'Could not publish OAuth callback port %d→%d (sbx exited %d): %s. If the port was already published from a previous run this is harmless; otherwise OAuth flows will fail until resolved.',
+                $callbackPort,
+                $relayPort,
                 $publish->getExitCode() ?? -1,
                 $detail
             );
         }
 
-        $this->startOauthRelayProcess($port)->run();
+        $this->startOauthRelayProcess($relayPort, $callbackPort)->run();
 
         return $warning;
     }
