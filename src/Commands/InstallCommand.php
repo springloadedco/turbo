@@ -659,7 +659,10 @@ class InstallCommand extends Command
         }
 
         $this->info('Preparing sandbox...');
-        $sandbox->prepareSandbox();
+        $prepareWarning = $sandbox->prepareSandbox();
+        if ($prepareWarning !== null) {
+            $this->warn($prepareWarning);
+        }
 
         return true;
     }

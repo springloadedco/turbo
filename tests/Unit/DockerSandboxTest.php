@@ -146,6 +146,7 @@ it('setupOauthRelay publishes the configured port and starts the relay', functio
 
     $publishProcess = Mockery::mock(Process::class);
     $publishProcess->shouldReceive('run')->once();
+    $publishProcess->shouldReceive('isSuccessful')->andReturn(true);
 
     $relayProcess = Mockery::mock(Process::class);
     $relayProcess->shouldReceive('run')->once();
@@ -154,7 +155,7 @@ it('setupOauthRelay publishes the configured port and starts the relay', functio
     $sandbox->shouldReceive('publishOauthPortProcess')->with(33418)->once()->andReturn($publishProcess);
     $sandbox->shouldReceive('startOauthRelayProcess')->with(33418)->once()->andReturn($relayProcess);
 
-    $sandbox->setupOauthRelay();
+    expect($sandbox->setupOauthRelay())->toBeNull();
 });
 
 it('setupOauthRelay reads the port from config', function () {
@@ -162,6 +163,7 @@ it('setupOauthRelay reads the port from config', function () {
 
     $publishProcess = Mockery::mock(Process::class);
     $publishProcess->shouldReceive('run')->once();
+    $publishProcess->shouldReceive('isSuccessful')->andReturn(true);
 
     $relayProcess = Mockery::mock(Process::class);
     $relayProcess->shouldReceive('run')->once();
@@ -170,19 +172,43 @@ it('setupOauthRelay reads the port from config', function () {
     $sandbox->shouldReceive('publishOauthPortProcess')->with(9999)->once()->andReturn($publishProcess);
     $sandbox->shouldReceive('startOauthRelayProcess')->with(9999)->once()->andReturn($relayProcess);
 
-    $sandbox->setupOauthRelay();
+    expect($sandbox->setupOauthRelay())->toBeNull();
 });
 
-it('prepareSandbox calls setupOauthRelay after host setup', function () {
+it('setupOauthRelay returns a warning string when publish fails but still starts the relay', function () {
+    config()->set('turbo.oauth.callback_port', 33418);
+
+    $publishProcess = Mockery::mock(Process::class);
+    $publishProcess->shouldReceive('run')->once();
+    $publishProcess->shouldReceive('isSuccessful')->andReturn(false);
+    $publishProcess->shouldReceive('getExitCode')->andReturn(1);
+    $publishProcess->shouldReceive('getErrorOutput')->andReturn('port already in use');
+
+    $relayProcess = Mockery::mock(Process::class);
+    $relayProcess->shouldReceive('run')->once();
+
+    $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->shouldReceive('publishOauthPortProcess')->with(33418)->once()->andReturn($publishProcess);
+    $sandbox->shouldReceive('startOauthRelayProcess')->with(33418)->once()->andReturn($relayProcess);
+
+    $warning = $sandbox->setupOauthRelay();
+
+    expect($warning)->toBeString()
+        ->and($warning)->toContain('33418')
+        ->and($warning)->toContain('port already in use')
+        ->and($warning)->toContain('sbx exited 1');
+});
+
+it('prepareSandbox calls setupOauthRelay and returns its result', function () {
     $prepareProcess = Mockery::mock(Process::class);
     $prepareProcess->shouldReceive('run')->once();
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
     $sandbox->shouldReceive('resolveHosts')->andReturn([]);
     $sandbox->shouldReceive('prepareSandboxProcess')->andReturn($prepareProcess);
-    $sandbox->shouldReceive('setupOauthRelay')->once();
+    $sandbox->shouldReceive('setupOauthRelay')->once()->andReturn('warning text');
 
-    $sandbox->prepareSandbox();
+    expect($sandbox->prepareSandbox())->toBe('warning text');
 });
 
 it('ensureSandboxExists returns true when sandbox already exists', function () {

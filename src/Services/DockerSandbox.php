@@ -122,9 +122,13 @@ class DockerSandbox
      *
      * Configures proxy bypasses for host access (runs on host),
      * then runs the setup script inside the sandbox for node_modules
-     * isolation and /etc/hosts entries.
+     * isolation and /etc/hosts entries, then sets up the MCP OAuth
+     * callback relay.
+     *
+     * Returns null on full success, or a warning string if the OAuth
+     * port publish step failed (the rest of the prepare always runs).
      */
-    public function prepareSandbox(): void
+    public function prepareSandbox(): ?string
     {
         // Configure proxy bypasses from the host side
         $hosts = $this->resolveHosts();
@@ -138,7 +142,7 @@ class DockerSandbox
         });
 
         // Set up the MCP OAuth callback relay (publish port + start socat)
-        $this->setupOauthRelay();
+        return $this->setupOauthRelay();
     }
 
     /**
@@ -259,17 +263,37 @@ class DockerSandbox
     /**
      * Set up the MCP OAuth callback path for this sandbox.
      *
-     * Publishes the callback port host→sandbox and starts the relay
-     * daemon inside the sandbox. Both steps are idempotent and safe to
-     * re-run; failures of the publish step (already published) are
-     * intentionally ignored.
+     * Publishes the callback port host→sandbox and starts the relay daemon
+     * inside the sandbox. The relay launch always runs.
+     *
+     * Returns null on success, or a warning message if the port publish
+     * step failed. Failures are surfaced (not swallowed) because we cannot
+     * reliably distinguish a benign "already published" re-run from a real
+     * conflict — the caller should display the warning so the user can
+     * investigate if OAuth flows fail.
      */
-    public function setupOauthRelay(): void
+    public function setupOauthRelay(): ?string
     {
         $port = (int) config('turbo.oauth.callback_port', 33418);
 
-        $this->publishOauthPortProcess($port)->run();
+        $publish = $this->publishOauthPortProcess($port);
+        $publish->run();
+
+        $warning = null;
+        if (! $publish->isSuccessful()) {
+            $stderr = trim($publish->getErrorOutput());
+            $detail = $stderr !== '' ? $stderr : 'no error output';
+            $warning = sprintf(
+                'Could not publish OAuth callback port %d (sbx exited %d): %s. If the port was already published from a previous run this is harmless; otherwise OAuth flows will fail until resolved.',
+                $port,
+                $publish->getExitCode() ?? -1,
+                $detail
+            );
+        }
+
         $this->startOauthRelayProcess($port)->run();
+
+        return $warning;
     }
 
     /**
