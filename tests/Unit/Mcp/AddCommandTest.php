@@ -25,6 +25,7 @@ it('runs claude mcp add inside the sandbox with the configured callback port', f
     $process->shouldReceive('isSuccessful')->andReturn(true);
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
     $sandbox->shouldReceive('execProcess')
         ->withArgs(function (array $command) {
@@ -57,13 +58,17 @@ it('honours --scope and --transport options', function () {
     $process->shouldReceive('isSuccessful')->andReturn(true);
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
     $sandbox->shouldReceive('execProcess')
         ->withArgs(function (array $command) {
-            return in_array('--scope', $command, true)
-                && in_array('project', $command, true)
-                && in_array('--transport', $command, true)
-                && in_array('sse', $command, true);
+            return $command === [
+                'claude', 'mcp', 'add',
+                '--transport', 'sse',
+                '--callback-port', '33418',
+                '--scope', 'project',
+                'figma', 'https://mcp.figma.com/mcp',
+            ];
         })
         ->once()
         ->andReturn($process);
@@ -86,6 +91,7 @@ it('reports failure when claude mcp add exits non-zero', function () {
     $process->shouldReceive('isSuccessful')->andReturn(false);
 
     $sandbox = Mockery::mock(DockerSandbox::class)->makePartial();
+    $sandbox->workspace = '/Users/dev/Sites/cpbc';
     $sandbox->shouldReceive('sandboxExists')->andReturn(true);
     $sandbox->shouldReceive('execProcess')->andReturn($process);
 

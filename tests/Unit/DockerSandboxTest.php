@@ -121,7 +121,7 @@ it('creates a publish OAuth port process with same host and sandbox port', funct
         ->toContain('33418:33418');
 });
 
-it('creates a start OAuth relay process that runs socat in background via sbx exec', function () {
+it('creates a start OAuth relay process that runs socat via sbx exec with a PID-file liveness check', function () {
     config()->set('turbo.docker.workspace', '/Users/dev/Sites/cpbc');
 
     $sandbox = app(DockerSandbox::class);
@@ -136,7 +136,9 @@ it('creates a start OAuth relay process that runs socat in background via sbx ex
         ->toContain('-lc')
         ->toContain('turbo-oauth-relay')
         ->toContain('TURBO_OAUTH_PORT=33418')
-        ->toContain('pgrep');
+        ->toContain('/tmp/turbo-oauth-relay.pid')
+        ->toContain('kill -0')
+        ->not->toContain('pgrep');
 });
 
 it('setupOauthRelay publishes the configured port and starts the relay', function () {

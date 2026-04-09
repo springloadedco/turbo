@@ -242,12 +242,14 @@ class DockerSandbox
      * publishing (which targets eth0) and Claude Code's localhost-only
      * OAuth listener.
      *
-     * Idempotent: pgrep skips the launch if a relay is already running.
+     * Idempotent: a PID file at /tmp/turbo-oauth-relay.pid is checked
+     * with `kill -0` to detect a live relay; the launch is skipped when
+     * one is already running.
      */
     public function startOauthRelayProcess(int $port): Process
     {
         $script = sprintf(
-            "pgrep -f 'turbo-oauth-relay' >/dev/null 2>&1 || (TURBO_OAUTH_PORT=%d nohup /usr/local/bin/turbo-oauth-relay >/tmp/turbo-oauth-relay.log 2>&1 &)",
+            '(test -f /tmp/turbo-oauth-relay.pid && kill -0 "$(cat /tmp/turbo-oauth-relay.pid)" 2>/dev/null) || (TURBO_OAUTH_PORT=%d nohup /usr/local/bin/turbo-oauth-relay </dev/null >/dev/null 2>&1 &)',
             $port
         );
 
