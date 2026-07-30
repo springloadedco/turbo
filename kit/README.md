@@ -21,10 +21,11 @@ not `claude`:
 sbx run --kit oci://docker.io/springloadedco/turbo-kit@sha256:<digest> turbo
 ```
 
-You only need the long reference when **creating** the sandbox. After that:
+You only need the long reference when **creating** the sandbox. After that the agent is read from
+the sandbox's own spec:
 
 ```bash
-sbx run <sandbox-name>
+sbx run --name <sandbox-name>
 ```
 
 The current digest is in the [latest release](https://github.com/springloadedco/turbo/releases).
@@ -89,8 +90,10 @@ Anything every project needs belongs in `network.allowedDomains` here. Anything 
 belongs in a per-sandbox rule on the host:
 
 ```bash
-sbx policy allow network <sandbox> example.com:443
+sbx policy allow network --sandbox <sandbox> example.com:443
 ```
+
+Without `--sandbox` the rule applies globally to every sandbox on the machine.
 
 To find what a failing command actually reached for:
 

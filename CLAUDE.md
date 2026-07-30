@@ -1,244 +1,184 @@
 # Turbo
 
-Springloaded's Laravel AI development toolkit.
+Springloaded's sbx kit and skills for Laravel development with Claude Code.
 
 ## Overview
 
-This is a Laravel package that provides AI guidelines, skills, and tools for Springloaded projects via Laravel Boost integration.
+This repo is **not** a Composer package. It ships two things:
 
-## Development
+1. **`kit/`** — a [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit (`kind: sandbox`)
+   that extends the built-in `claude` agent with a Laravel toolchain, a per-sandbox network
+   allowlist and agent memory. Published to Docker Hub as an OCI artifact.
+2. **`skills/`** — Laravel and GitHub skills installed per-project with
+   `npx skills add springloadedco/turbo`.
 
-- PHP 8.4+, Laravel 11/12
-- Uses Spatie Laravel Package Tools
+The `Dockerfile` builds the template image the kit points at
+(`docker.io/springloadedco/turbo:latest`), published by `.github/workflows/publish-sandbox.yml`.
 
-### Commands
+## Structure
 
-- `composer test` - Run tests (Pest)
-- `composer analyse` - Static analysis (PHPStan)
-- `composer format` - Code formatting (Pint)
+| Path | Purpose |
+|---|---|
+| `Dockerfile` | Template image — PHP 8.4, Composer, Node 22, Chromium, agent-browser |
+| `kit/spec.yaml` | The kit |
+| `kit/files/home/` | Files copied into `/home/agent/` — currently the agent-browser skill |
+| `skills/` | Publishable skills (`npx skills` well-known location) |
+| `skills.sh.json` | Skill groupings shown by `npx skills add` |
+| `.agents/skills/` | This repo's **own** dev skills — not published, tracked in `skills-lock.json` |
 
-### Artisan Commands
+Don't put publishable skills in `.agents/skills/`; that directory is this repo's own tooling.
 
-This package registers artisan commands in `src/Commands/`. In a consumer Laravel project, they are called with `php artisan <command>`. When developing this package, use `bin/turbo` which wraps Orchestra Testbench:
+## Working on the kit
 
-- `bin/turbo install` - Install/configure Turbo in a project
-- `bin/turbo claude` - Launch interactive Claude session in a sandbox
-- `bin/turbo prompt {prompt}` - Send a one-shot prompt to Claude in a sandbox
-- `bin/turbo exec {command}` - Execute arbitrary commands inside the sandbox
-- `bin/turbo prepare` - Configure sandbox host access (/etc/hosts + policy)
-- `bin/turbo ports` - List / publish / unpublish sandbox ports
-- `bin/turbo start` / `bin/turbo stop` / `bin/turbo rm` - Sandbox lifecycle
-- `bin/turbo doctor` - Diagnose sandbox environment health
-- `bin/turbo skills` - Manage AI skills (not useful during package development — publishes skills to the Testbench workbench directory, not a real project)
+```bash
+sbx kit validate ./kit/
+sbx kit inspect ./kit/ --json | jq '.manifest, .caps, .warnings'
+sbx kit pack ./kit/ -o /tmp/turbo-kit.zip
 
-### Package Structure
+sbx run --kit ./kit --name turbo-probe turbo
+sbx exec turbo-probe -- php -v
+sbx rm turbo-probe
+```
 
-- `src/` - Package source code
-- `.ai/skills/` - AI skills published to consumer projects
-- `config/` - Publishable config
-- `tests/` - Pest tests
+Local directory references are exempt from both the pinning rule and the source allowlist, so
+iterate against the working copy. See `kit/README.md` for details.
 
-### How Skills Work
+### Kit facts worth not relearning
 
-The `.ai/skills/` directory contains Laravel development patterns that get published to projects installing Turbo. Each skill has a SKILL.md with usage triggers and examples.
+- **`schemaVersion` must stay `"1"`.** The current v2 grammar (`permissions:`, `setup:`,
+  `agentInstructions:`) is rejected outright by sbx v0.37.1 — strict decode, `field not found in
+  type spec.SpecFile`. v1 normalises to the same canonical model.
+- **The two `validate` warnings are expected.** `network.allowedDomains` and `memory` are flagged in
+  favour of `caps.network.allow` / `agentContext` — an *intermediate* v2 draft spelling that the
+  published v2 grammar has since renamed again. Don't chase it.
+- **`extends` is not resolved at load time.** `sbx kit inspect` shows it as a bare string; the CLI
+  walks the parent chain at `sbx run` / `sbx create` time. Only a real run proves the kit inherits
+  Claude Code's entrypoint and Anthropic credential.
+- **For a `kind: sandbox` kit the positional agent argument is the kit's own `name`** (`turbo`), not
+  `claude`.
+- **Kit `ports` only ever get ephemeral host ports.** A pinned host port needs
+  `sbx ports <sandbox> --publish` or `-p` at create time.
+- **`files/` only recognises `files/home/` and `files/workspace/`.** Anything else is ignored with a
+  warning. Copy with `cp -RL` — symlinks resolving outside the artifact root are rejected.
+- **The sbx CLI runs kit commands without a daemon**, which is why CI can validate and push from a
+  plain runner. The binary is in the `DockerSandboxes-linux-<arch>.tar.gz` release asset at
+  `docker-sbx/sbx`.
 
-### Commit Conventions
+## Commit conventions
 
-- Use conventional commits
-- `feat` is reserved for changes that impact the **public API** of the package
-- Internal tooling (`.agents/skills/`, config, CI, etc.) should use `chore`, not `feat`
+- Conventional commits.
+- `feat` is for changes to what consumers get — the kit spec, the image contents, published skills.
+- Repo tooling (`.agents/skills/`, CI, docs) uses `chore` or `ci`.
 
-### Testing
+## sbx CLI reference
 
-Uses Pest with Orchestra Testbench. Run `composer test`.
-
-### sbx CLI Reference
-
-**Authoritative docs** (always consult before speculating about sbx capabilities):
+**Authoritative docs** (consult before speculating):
 - CLI reference: https://docs.docker.com/reference/cli/sbx/
 - Sandboxes manual: https://docs.docker.com/ai/sandboxes/
-- Custom environments: https://docs.docker.com/ai/sandboxes/agents/custom-environments/
+- Kits: https://docs.docker.com/ai/sandboxes/customize/kits/
+- Templates: https://docs.docker.com/ai/sandboxes/customize/templates/
 - Network policy: https://docs.docker.com/reference/cli/sbx/policy/
-- Isolation & security: https://docs.docker.com/ai/sandboxes/security/
 
 Install: `brew install docker/tap/sbx`
 
-#### sbx Capability Matrix
+The docs site renders client-side and is often useless to fetch. `sbx <command> --help` is the
+fastest source of truth, and the release tarball gives you a runnable binary anywhere.
 
-**Supported on `sbx create` / `sbx run`:**
-- `--template <image>` — custom container image (pulled from an OCI registry)
-- `--name <name>` — custom sandbox name (default: `<agent>-<workdir>`)
-- `--branch <name>` — Git worktree on a branch (`--branch auto` on `run` to auto-generate)
-- `-m, --memory <size>` — memory limit (e.g. `8g`; default ~50% host memory, max 32 GiB)
-- Workspace positional args — mount host paths at the **same absolute path** in the sandbox (append `:ro` for read-only; multiple paths supported)
+### Templates vs kits
 
-**NOT supported on create/run** — handle differently:
-- `--env` / `--env-file` → use `sbx secret set` for supported services, or write to `/etc/sandbox-persistent.sh` via `sbx exec` for custom env vars
-- `--add-host` → modify `/etc/hosts` via `sbx exec` or bake into a custom template
-- `--volume` / `--mount` → only workspace positional args; no arbitrary remapping
-- `--publish` / `-p` → use `sbx ports <name> --publish <spec>` post-creation
-- `--dns` / `--hostname` → DNS resolution is handled by the host proxy, not the sandbox
-- `--cpus` / `--user` / `--entrypoint` → not supported
+They compose, they are not alternatives:
 
-#### Secret Injection Model
+- A **template** is an image. It customises an existing agent's *environment*. Built with a
+  Dockerfile (`docker build --push`) or captured with `sbx template save`.
+- A **kit** is declarative config in `spec.yaml` — network, ports, credentials, install/startup
+  hooks, files, agent memory.
 
-sbx secrets are **not** env vars inside the VM — they're injected at the network layer as HTTP auth headers by the host proxy:
+A `kind: sandbox` kit carries its own `sandbox.image`, so the kit can supply the template itself —
+one `--kit` flag instead of `--template` plus `--kit`. That's what Turbo does.
 
-- **Supported services** (proxy-injected, raw value never enters VM): `anthropic`, `aws`, `github`, `google`, `groq`, `mistral`, `nebius`, `openai`, `xai`
-- Set globally: `sbx secret set -g <service> -t <token>` (applies at sandbox creation time)
-- Set per-sandbox: `sbx secret set <name> <service> -t <token>` (takes effect immediately)
-- **Global secret changes require sandbox recreation** to take effect; per-sandbox updates are live.
+### `sbx run`
 
-For **custom env vars** (unsupported services), write to `/etc/sandbox-persistent.sh` inside the VM:
-```bash
-sbx exec -d <name> bash -c "echo 'export FOO=bar' >> /etc/sandbox-persistent.sh"
 ```
-This stores the value inside the VM — less secure than proxy-injected secrets.
+sbx run [flags] [AGENT] [PATH...] [-- AGENT_ARGS...]
+```
 
-**Turbo's GitHub token handling:** `turbo:install` stores the token in two places:
-1. `.claude/settings.local.json` as `GH_TOKEN` env var — used by the `gh` credential helper for git operations
-2. `sbx secret set <sandbox> github -t <token>` — sets a per-sandbox secret so the proxy uses the scoped token instead of the user's global `gh auth token`
+Agents: `claude`, `codex`, `copilot`, `cursor`, `docker-agent`, `droid`, `gemini`, `kiro`,
+`opencode`, `shell` — or a `kind: sandbox` kit's `name`.
 
-#### Host Access Patterns
+| Flag | Purpose |
+|---|---|
+| `--kit` | Kit reference (directory, ZIP, or OCI). Repeatable; order is composition order |
+| `-t, --template` | Container image override |
+| `--name` | Sandbox name (default `<agent>-<workdir>`). **Re-attach with `sbx run --name <sandbox>`** — the agent positional is read from the sandbox spec |
+| `-p, --publish` | Publish a port at creation time; ignored when re-attaching (use `sbx ports`) |
+| `--clone` | Run against a private in-container clone rather than the bind mount |
+| `-m, --memory` / `--cpus` | Resource limits |
+| `-d, --detached` | Print the sandbox ID and exit without attaching |
 
-From inside a sandbox, to reach services on the host machine:
+Extra positional paths mount additional workspaces at the same absolute path; append `:ro` for
+read-only.
 
-1. Use `host.docker.internal` (resolves to host; proxy auto-translates to `localhost`)
+### Other commands
+
+| Command | Notes |
+|---|---|
+| `sbx create` | Same flags as `run`, without attaching |
+| `sbx exec [-it] SANDBOX CMD` | Run a command inside a sandbox |
+| `sbx ls [-q]` | List sandboxes |
+| `sbx stop` / `sbx rm [--all]` | Lifecycle |
+| `sbx ports SANDBOX [--publish/--unpublish SPEC]` | Spec: `[[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTO]`. Services must bind `0.0.0.0` |
+| `sbx cp` | Copy files between host and sandbox |
+| `sbx template ls/save/rm/load` | Template snapshots (this is `sbx save` in older docs) |
+| `sbx skills import` | Seed the shared skills store; `--no-share-skills` opts a sandbox out |
+| `sbx policy ls` / `policy log SANDBOX` | Active rules, and what the proxy actually allowed or blocked |
+| `sbx diagnose` | Diagnose installation issues |
+| `sbx tui` | Interactive dashboard |
+
+### Network policy
+
+```bash
+sbx policy allow network --sandbox <sandbox> api.example.com:443   # scoped to one sandbox
+sbx policy allow network "*.npmjs.org"                             # ALL sandboxes — global
+sbx policy log <sandbox>                                           # what was blocked
+```
+
+Without `--sandbox` the rule is **global**. Kit `network.allowedDomains` rules are per-sandbox and
+show up in `sbx policy ls` with provenance `kit` (since v0.29.0). Deny always beats allow.
+
+Kit sources are themselves allowlisted and default to `docker.io/` only (v0.34.0+); other registries
+and `git+` URLs need `sbx settings set kit.allowedSources`.
+
+### Secrets
+
+Secrets are **not** env vars in the VM — the host proxy injects them as HTTP auth headers, so the
+raw value never enters the sandbox.
+
+- Proxy-injected services: `anthropic`, `aws`, `github`, `google`, `groq`, `mistral`, `nebius`,
+  `openai`, `xai`
+- `sbx secret set -g <service> -t <token>` — global, applies at sandbox creation
+- `sbx secret set <sandbox> <service> -t <token>` — per-sandbox, live
+
+GitHub auth works out of the box via the proxy; the image deliberately carries no credential helper.
+
+### Host access
+
+1. `host.docker.internal` resolves to the host (the proxy translates it to `localhost`)
 2. Allowlist the port: `sbx policy allow network localhost:11434`
-3. `curl http://host.docker.internal:11434/...` now works
+3. `curl http://host.docker.internal:11434/...`
 
-For **custom hostnames** (e.g. Laravel Herd/Valet routing `myapp.test` → host): sbx has **no native `/etc/hosts` support**. Options: (a) modify via `sbx exec sudo tee -a /etc/hosts` at install time, (b) bake into a custom template, (c) use `host.docker.internal` + `Host:` header. Turbo uses option (a) via `turbo:prepare`.
+There is no native `/etc/hosts` support, and kit `files/` cannot write outside the agent home or
+workspace. Custom hostnames (Herd/Valet `myapp.test`) need `sbx exec sudo tee -a /etc/hosts`, a
+baked template, or `host.docker.internal` plus a `Host:` header.
 
-#### Main Commands
+## Image notes
 
-**`sbx create [OPTIONS] AGENT WORKSPACE`**
-- Create a sandbox with access to a host workspace for an agent
-- Available agents: `claude`, `codex`, `copilot`, `docker-agent`, `gemini`, `kiro`, `opencode`, `shell`
-- Workspace path is required and exposed inside sandbox at same path as host
-- Options:
-  - `--name string` - Custom sandbox name (default: `<agent>-<workdir>`)
-  - `--template string` - Custom container image for sandbox
-  - `--branch string` - Create a Git worktree on the given branch
-  - `-m, --memory string` - Memory limit (e.g., `1024m`, `8g`)
-
-**`sbx run <AGENT> [WORKSPACE] [-- AGENT_ARGS...] | SANDBOX [-- AGENT_ARGS...]`**
-- Run an agent in a sandbox; creates sandbox if it doesn't exist
-- Workspace defaults to current directory if omitted
-- Pass agent arguments after `--` separator
-- Examples:
-  - `sbx run claude` - Create/run sandbox with claude in current dir
-  - `sbx run existing-sandbox` - Run existing sandbox
-  - `sbx run claude . -- -p "What version are you running?"` - Run with agent args
-  - `sbx run --branch my-feature claude` - Run on an isolated git worktree branch
-- Options: same as `create` command, plus `--branch`
-
-**`sbx exec [OPTIONS] SANDBOX COMMAND [ARG...]`**
-- Execute a command in an existing sandbox
-- Options:
-  - `-i, --interactive` - Keep STDIN open
-  - `-t, --tty` - Allocate a pseudo-TTY
-
-**`sbx ls`**
-- List all sandboxes with status
-- Options:
-  - `-q, --quiet` - Only display sandbox names
-
-**`sbx rm SANDBOX [SANDBOX...]`**
-- Remove one or more sandboxes and all associated resources
-- Options:
-  - `--all` - Remove all sandboxes
-
-**`sbx stop SANDBOX [SANDBOX...]`**
-- Stop one or more sandboxes without removing them
-- Sandboxes can be restarted later
-
-**`sbx ports SANDBOX [OPTIONS]`**
-- List, publish, or unpublish sandbox ports
-- Services inside the sandbox must bind to `0.0.0.0` (not `127.0.0.1`) to be reachable
-- Options:
-  - `--publish [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]` - Publish a port
-  - `--unpublish [[HOST_IP:]HOST_PORT:]SANDBOX_PORT[/PROTOCOL]` - Unpublish a port
-- Default host IP: `127.0.0.1`. Default protocol: `tcp`.
-- Examples:
-  - `sbx ports claude-myapp --publish 8080:8000` - Publish sandbox's 8000 on host's 8080
-  - `sbx ports claude-myapp --publish 127.0.0.1:5173:5173` - Bind to loopback
-  - `sbx ports claude-myapp` - List published ports
-
-**`sbx reset [OPTIONS]`**
-- Reset all sandboxes and permanently delete all data
-- Options:
-  - `--preserve-secrets` - Keep stored secrets
-
-**`sbx save SANDBOX TAG [OPTIONS]`**
-- Save a snapshot of sandbox as a template
-- Examples:
-  - `sbx save my-sandbox myimage:v1.0` - Load into host Docker
-  - `sbx save my-sandbox myimage:v1.0 --output /tmp/myimage.tar` - Save to file
-- Options:
-  - `-o, --output string` - Save to tar file instead of loading into Docker
-
-**`sbx policy allow network <hosts>`**
-- Allow network access to specific domains
-- Examples:
-  - `sbx policy allow network registry.npmjs.org`
-  - `sbx policy allow network "*.example.com:443,example.com:443"`
-  - `sbx policy allow network localhost:11434` - Allow access to host services
-
-**`sbx policy ls`**
-- Display active network access rules
-
-**`sbx policy reset`**
-- Restore default network policy
-
-**`sbx secret set [OPTIONS] <service>`**
-- Store credentials in OS keychain for injection into sandboxes
-- Examples:
-  - `sbx secret set -g anthropic` - Set Anthropic API key
-  - `sbx secret set -g github -t "$(gh auth token)"` - Set GitHub token
-
-**`sbx login`**
-- Docker OAuth sign-in via browser
-
-**`sbx version`**
-- Show version information
-
-### Docker Sandbox Patterns
-
-#### Image Registry Requirement
-- sbx uses a separate Docker daemon that does NOT share the local image store
-- Templates must be pulled from an OCI registry (Docker Hub, GHCR, etc.)
-- Default image: `docker.io/springloadedco/turbo:latest` — published via CI
-- For custom images, build and push with Docker directly: `docker build --push -t <your-image> .`
-
-#### Symfony Process: TTY vs PTY vs pcntl_exec
-- `pcntl_exec()` — replaces the PHP process with the child. Use for **fully-interactive TUIs** (Claude Code, bash) because Symfony's `setTty(true)` does NOT properly allocate a pty for them (causes exit 137 SIGKILL after welcome screen renders). See `DockerSandbox::runInteractive()`.
-- `setPty(true)` — creates pseudo-terminal for output capture. Use for **non-interactive** command execution that needs streaming output (e.g. `turbo:prompt`).
-- `setTty(true)` — connects real terminal stdin/stdout/stderr directly. Works for simple commands but NOT for Ink/Textual-based TUIs.
-- Check `isTtySupported()` / `isPtySupported()` before calling.
-
-#### Don't run `sbx exec` before `sbx run` in the same PHP process
-- Running `sbx exec` via Symfony Process immediately before `sbx run` via `pcntl_exec` causes the claude agent to be SIGKILL'd (exit 137) after rendering its welcome screen.
-- Root cause unclear — likely sbx's session lifecycle interacts badly with the rapid exec-then-run sequence from PHP.
-- Fix: do any `sbx exec` prep steps at sandbox creation time (`turbo:install`) or via a separate artisan command (`turbo:prepare`), not before `turbo:claude`.
-
-#### sbx Commands
-- `sbx run <name> -- <args>` — args after `--` go to `claude` CLI
-- `-p "prompt"` sends a **prompt** to Claude (natural language)
-- Don't use try-then-fallback pattern for sandbox existence — command failures inside an existing sandbox are indistinguishable from "sandbox not found." Use `sandboxExists()` check instead.
-
-#### Superpowers
-- Superpowers is installed as a third-party skill via `npx skills add obra/superpowers` during `turbo:install`
-- It is NOT installed via the Claude Code plugin marketplace — the marketplace approach was fragile
-- The `.claude/settings.json` in this repo has `enabledPlugins` for development of the Turbo package itself; consumer projects get superpowers via npx skills
-
-#### Docker Build UX
-- `--progress=quiet` suppresses all output — use `ProgressIndicator` spinner with `start()`/`advance()` pattern instead of `run()` with output callback
-
-#### Chromium / agent-browser
-- The apt `chromium-browser` package on ARM64 Ubuntu is a non-functional snap stub — do NOT use it
-- Chromium is installed via Playwright (`npx playwright install --with-deps chromium`) to `/opt/chromium`, symlinked to `/usr/local/bin/chromium`
-- `AGENT_BROWSER_EXECUTABLE_PATH=/usr/local/bin/chromium` is set in the Dockerfile
-- When modifying the Dockerfile, verify agent-browser still works: build the image, then run `docker run --rm --user agent <image> agent-browser batch "open file:///dev/null" "screenshot"`
-
-#### Git SSH→HTTPS Rewriting
-- The Dockerfile configures `git config --system url."https://github.com/".insteadOf "git@github.com:"` so tools that default to SSH (e.g. Claude Code plugin installer) use the HTTPS credential helper instead of missing SSH keys
+- sbx uses a separate Docker daemon that does **not** share the local image store — templates must
+  be pulled from a registry.
+- The apt `chromium-browser` package on ARM64 Ubuntu is a non-functional snap stub. Chromium comes
+  from Playwright into `/opt/chromium`, symlinked to `/usr/local/bin/chromium`, with
+  `AGENT_BROWSER_EXECUTABLE_PATH` set.
+- After changing the Dockerfile, verify agent-browser still works:
+  ```bash
+  docker run --rm --user agent <image> agent-browser batch "open file:///dev/null" "screenshot"
+  ```
+  Building needs `cdn.playwright.dev` and `playwright.download.prss.microsoft.com` reachable.
