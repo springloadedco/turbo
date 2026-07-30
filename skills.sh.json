@@ -1,0 +1,26 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Laravel",
+      "description": "Springloaded's opinionated Laravel conventions — controllers, actions, validation, testing and Inertia page components.",
+      "skills": [
+        "laravel-controllers",
+        "laravel-actions",
+        "laravel-validation",
+        "laravel-testing",
+        "laravel-inertia"
+      ]
+    },
+    {
+      "title": "GitHub",
+      "description": "Workflow conventions for issues, labels and milestones. Framework-agnostic.",
+      "skills": [
+        "github-issue",
+        "github-labels",
+        "github-milestone"
+      ]
+    }
+  ]
+}
