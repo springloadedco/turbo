@@ -1,0 +1,80 @@
+schemaVersion: "1"
+kind: sandbox
+name: turbo
+displayName: Turbo
+description: "Springloaded's Laravel sandbox for Claude Code — PHP 8.4, Composer, Node 22, headless Chromium and agent-browser."
+
+# Inherits Claude Code's entrypoint and Anthropic OAuth credential block from
+# the built-in agent, so none of that is restated here. Do not redeclare the
+# Anthropic credential: extends unions primitive arrays but errors on a
+# credentials[].service the parent already owns.
+extends: claude
+
+sandbox:
+  # Published from this repo's Dockerfile by .github/workflows/publish-sandbox.yml.
+  # Deliberately a moving tag — recreating a sandbox picks up the current image.
+  image: docker.io/springloadedco/turbo:latest
+
+network:
+  allowedDomains:
+    # PHP / Composer
+    - "packagist.org:443"
+    - "repo.packagist.org:443"
+    - "getcomposer.org:443"
+
+    # Node / npm
+    - "registry.npmjs.org:443"
+
+    # GitHub
+    - "github.com:443"
+    - "api.github.com:443"
+    - "codeload.github.com:443"
+    - "raw.githubusercontent.com:443"
+    - "objects.githubusercontent.com:443"
+    - "release-assets.githubusercontent.com:443"
+
+    # apt — needed for anything installed at runtime. apt-get update refreshes
+    # every configured source, so all of these must be reachable or it exits
+    # non-zero even when the wanted package lives elsewhere. Ubuntu serves
+    # amd64 from archive/security and arm64 from ports.
+    - "archive.ubuntu.com:80"
+    - "security.ubuntu.com:80"
+    - "ports.ubuntu.com:80"
+
+    # Playwright — only hit when a project pins its own Playwright version and
+    # fetches the matching browser build at runtime. On amd64 cdn.playwright.dev
+    # 302s to Google's Chrome-for-Testing bucket, hence storage.googleapis.com.
+    - "cdn.playwright.dev:443"
+    - "playwright.download.prss.microsoft.com:443"
+    - "storage.googleapis.com:443"
+
+    # Documentation the agent reaches for during Laravel work
+    - "laravel.com:443"
+    - "livewire.laravel.com:443"
+    - "inertiajs.com:443"
+    - "tailwindcss.com:443"
+    - "php.net:443"
+    - "www.php.net:443"
+
+memory: |
+  ## Turbo sandbox
+
+  PHP 8.4 with the common extensions (mbstring, xml, curl, zip, intl, bcmath,
+  sqlite3, mysql, gd, redis, pgsql, imagick, memcached), Composer, Node 22 and
+  npm are all on PATH.
+
+  Headless Chromium is at `/usr/local/bin/chromium` with the `agent-browser`
+  CLI installed globally; `AGENT_BROWSER_EXECUTABLE_PATH` already points at it,
+  so don't set it yourself. There is no display server — headless only.
+  Screenshots, PDFs, traces and video all work; `--headed`, `--ui` and
+  `codegen` do not.
+
+  ## Network policy
+
+  Outbound access is restricted to this kit's allowlist. A request that fails
+  with a proxy error (often a 502 or a "Blocked by network policy" body) is
+  usually policy rather than the service being down. Ask the user to run
+  `sbx policy ls` and `sbx policy log <sandbox>` on their host, and to add the
+  host with `sbx policy allow network <sandbox> <domain>` if it should be
+  reachable. A domain needed by every project belongs in this kit's
+  `network.allowedDomains` instead.
