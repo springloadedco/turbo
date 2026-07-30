@@ -6,27 +6,33 @@ Springloaded's sbx kit and skills for Laravel development with Claude Code.
 
 This repo is **not** a Composer package. It ships two things:
 
-1. **`kit/`** — a [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit (`kind: sandbox`)
-   that extends the built-in `claude` agent with a Laravel toolchain, a per-sandbox network
-   allowlist and agent memory. Published to Docker Hub as an OCI artifact.
+1. **`kit/`** — a [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit (`kind: mixin`) that
+   layers a Laravel toolchain, a per-sandbox network allowlist and agent memory onto **any** base
+   agent. Published to Docker Hub as an OCI artifact.
 2. **`skills/`** — Laravel and GitHub skills installed per-project with
    `npx skills add springloadedco/turbo`.
 
-The `Dockerfile` builds the template image the kit points at
-(`docker.io/springloadedco/turbo:latest`), published by `.github/workflows/publish-sandbox.yml`.
+The `Dockerfile` builds `docker.io/springloadedco/turbo:latest`, an **optional accelerator** that
+bakes in what the kit would otherwise install. It is built on the `claude-code` base, so it only
+applies to the `claude` agent. Published by `.github/workflows/publish-sandbox.yml`.
 
 ## Structure
 
 | Path | Purpose |
 |---|---|
-| `Dockerfile` | Template image — PHP, Composer, Node 22, Chromium, agent-browser |
+| `Dockerfile` | Accelerator image — PHP, Composer, Node 22, Chromium, agent-browser |
 | `kit/spec.yaml` | The kit |
-| `kit/files/home/` | Files copied into `/home/agent/` — currently the agent-browser skill |
+| `kit/files/home/` | Files copied into `/home/agent/` — the agent-browser skill, at two paths |
+| `install.sh` | Installs the `turbo` shell shorthand |
+| `shell/turbo.sh` | The `turbo` / `turbo-update` functions, sourced from the user's rc |
 | `skills/` | Publishable skills (`npx skills` well-known location) |
 | `skills.sh.json` | Skill groupings shown by `npx skills add` |
 | `.agents/skills/` | This repo's **own** dev skills — not published, tracked in `skills-lock.json` |
 
 Don't put publishable skills in `.agents/skills/`; that directory is this repo's own tooling.
+
+`install.sh` wires the rc to *source* `shell/turbo.sh` rather than copying the function in, so
+`turbo-update` (a `git pull`) is enough to ship changes to it.
 
 ## Working on the kit
 
@@ -35,7 +41,7 @@ sbx kit validate ./kit/
 sbx kit inspect ./kit/ --json | jq '.manifest, .caps, .warnings'
 sbx kit pack ./kit/ -o /tmp/turbo-kit.zip
 
-sbx run --kit ./kit --name turbo-probe turbo
+sbx run --kit ./kit --name turbo-probe claude
 sbx exec turbo-probe -- php -v
 sbx rm turbo-probe
 ```
@@ -45,17 +51,26 @@ iterate against the working copy. See `kit/README.md` for details.
 
 ### Kit facts worth not relearning
 
+- **`mixins:` is accepted but not implemented** on v0.37.1 — `validate` warns, and the runtime
+  silently ignores it. Per-agent sandbox kits therefore cannot share a common mixin. This is why
+  Turbo is one `kind: mixin` rather than a family of `kind: sandbox` kits. Runtime `--kit`
+  composition *is* implemented.
+- **A mixin cannot name a template image.** `sandbox.image` is `kind: sandbox` only, which is why
+  the accelerator image is passed with `--template` instead.
 - **`schemaVersion` must stay `"1"`.** The current v2 grammar (`permissions:`, `setup:`,
   `agentInstructions:`) is rejected outright by sbx v0.37.1 — strict decode, `field not found in
   type spec.SpecFile`. v1 normalises to the same canonical model.
 - **The two `validate` warnings are expected.** `network.allowedDomains` and `memory` are flagged in
   favour of `caps.network.allow` / `agentContext` — an *intermediate* v2 draft spelling that the
   published v2 grammar has since renamed again. Don't chase it.
-- **`extends` is not resolved at load time.** `sbx kit inspect` shows it as a bare string; the CLI
-  walks the parent chain at `sbx run` / `sbx create` time. Only a real run proves the kit inherits
-  Claude Code's entrypoint and Anthropic credential.
-- **For a `kind: sandbox` kit the positional agent argument is the kit's own `name`** (`turbo`), not
-  `claude`.
+- **Guard every install command** on the binary it provides. Installs run at every sandbox creation,
+  including recreates; the guards are what make the prebuilt image fast (~1s for all five) while
+  keeping a stock base workable.
+- **The allowlist must cover install time, not just runtime.** `apt-get update` refreshes every
+  configured source — including Docker's repo on `*-docker` template variants — and `n` fetches Node
+  from `nodejs.org`.
+- **Skill paths differ per agent.** Claude Code reads `~/.claude/skills/`; most others read
+  `~/.agents/skills/`. The kit ships the agent-browser skill to both.
 - **Kit `ports` only ever get ephemeral host ports.** A pinned host port needs
   `sbx ports <sandbox> --publish` or `-p` at create time.
 - **`files/` only recognises `files/home/` and `files/workspace/`.** Anything else is ignored with a
@@ -93,8 +108,10 @@ They compose, they are not alternatives:
 - A **kit** is declarative config in `spec.yaml` — network, ports, credentials, install/startup
   hooks, files, agent memory.
 
-A `kind: sandbox` kit carries its own `sandbox.image`, so the kit can supply the template itself —
-one `--kit` flag instead of `--template` plus `--kit`. That's what Turbo does.
+A `kind: sandbox` kit carries its own `sandbox.image`, so it can supply the template itself — one
+flag instead of two. Turbo deliberately does **not** do that: a sandbox kit is bound to one agent
+via `extends:`, and `mixins:` (the mechanism that would let per-agent kits share content) is not
+implemented yet. Turbo is a mixin plus an optional `--template`.
 
 ### `sbx run`
 
