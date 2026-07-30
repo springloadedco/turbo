@@ -36,15 +36,38 @@ iterate against the working copy:
 
 ```bash
 sbx kit validate ./kit/
-sbx kit inspect ./kit/ --output json | jq '.sandbox, .credentials, .warnings'
+sbx kit inspect ./kit/ --json | jq '.manifest, .caps, .warnings'
+sbx kit pack ./kit/ -o /tmp/turbo-kit.zip
 sbx run --kit ./kit --name turbo-probe turbo
 sbx exec turbo-probe -- php -v
 sbx rm turbo-probe
 ```
 
-`schemaVersion` is `"1"`. A `"2"` spec hard-fails to load on any `sbx` predating v2 support, so v1
-stays until the whole team is past that. `sbx kit inspect --output json | jq '.warnings'` lists the
-legacy surfaces that will need migrating; the canonical model they normalise to is identical.
+`extends` stays an unresolved string in `inspect` output — the CLI walks the parent chain at
+`sbx run` / `sbx create` time, not at load time. So `inspect` will not show the inherited Claude
+entrypoint or Anthropic credential; only an actual `sbx run` proves the inheritance.
+
+### Why `schemaVersion: "1"`
+
+The current v2 grammar does not load on sbx v0.37.1 — strict decoding rejects it outright:
+
+```
+INVALID: artifact: invalid spec.yaml: yaml: unmarshal errors:
+  line 7: field permissions not found in type spec.SpecFile
+  line 11: field agentInstructions not found in type spec.SpecFile
+```
+
+v1 loads everywhere and normalises to the same canonical model. `validate` reports two expected
+deprecation warnings:
+
+```
+WARN: deprecated field "network.allowedDomains": use 'caps.network.allow' instead (kit-spec v2)
+WARN: deprecated field "memory": use 'agentContext' instead (kit-spec v2)
+```
+
+Those point at an intermediate v2 draft spelling (`caps` / `agentContext`), which the published v2
+grammar has since renamed again to `permissions` / `agentInstructions`. Don't chase it — stay on v1
+until a `schemaVersion: "2"` spec validates on the sbx everyone is running.
 
 ## Refreshing the vendored agent-browser skill
 
