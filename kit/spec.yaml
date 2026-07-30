@@ -1,29 +1,44 @@
 schemaVersion: "1"
-kind: sandbox
+kind: mixin
 name: turbo
 displayName: Turbo
-description: "Springloaded's Laravel sandbox for Claude Code — PHP, Composer, Node 22, headless Chromium and agent-browser."
+description: "Springloaded's Laravel toolchain for sandbox agents — PHP with the common extensions, Composer, Node 22, headless Chromium and agent-browser. Layers onto any base agent."
 
-# Inherits Claude Code's entrypoint and Anthropic OAuth credential block from
-# the built-in agent, so none of that is restated here. Do not redeclare the
-# Anthropic credential: extends unions primitive arrays but errors on a
-# credentials[].service the parent already owns.
-extends: claude
+# Deliberately no `requires.agent` — this mixin sets nothing agent-specific, so
+# it composes onto claude, codex, gemini, opencode, or anything else.
+#
+# Every install command is guarded on the binary it provides. On the pre-baked
+# docker.io/springloadedco/turbo:latest template they all no-op and creation is
+# instant; on a stock agent base they install the toolchain (a few minutes,
+# once). The same artifact is therefore both the fast path and the portable one.
 
-sandbox:
-  # Published from this repo's Dockerfile by .github/workflows/publish-sandbox.yml.
-  # Deliberately a moving tag — recreating a sandbox picks up the current image.
-  image: docker.io/springloadedco/turbo:latest
+environment:
+  variables:
+    # Install hooks run as root but the agent runs as uid 1000, so Playwright's
+    # default ~/.cache/ms-playwright would leave the browser in root's home.
+    # A fixed system path shared by every user fixes that.
+    PLAYWRIGHT_BROWSERS_PATH: /opt/chromium
+    AGENT_BROWSER_EXECUTABLE_PATH: /usr/local/bin/chromium
 
 network:
   allowedDomains:
+    # apt — apt-get update refreshes every configured source, so all of these
+    # must be reachable or it exits non-zero even when the wanted package lives
+    # elsewhere. Ubuntu serves amd64 from archive/security and arm64 from ports.
+    # The *-docker template variants pre-add Docker's apt repo.
+    - "archive.ubuntu.com:80"
+    - "security.ubuntu.com:80"
+    - "ports.ubuntu.com:80"
+    - "download.docker.com:443"
+
     # PHP / Composer
     - "packagist.org:443"
     - "repo.packagist.org:443"
     - "getcomposer.org:443"
 
-    # Node / npm
+    # Node / npm. `n` downloads the Node tarball from nodejs.org.
     - "registry.npmjs.org:443"
+    - "nodejs.org:443"
 
     # GitHub
     - "github.com:443"
@@ -33,17 +48,8 @@ network:
     - "objects.githubusercontent.com:443"
     - "release-assets.githubusercontent.com:443"
 
-    # apt — needed for anything installed at runtime. apt-get update refreshes
-    # every configured source, so all of these must be reachable or it exits
-    # non-zero even when the wanted package lives elsewhere. Ubuntu serves
-    # amd64 from archive/security and arm64 from ports.
-    - "archive.ubuntu.com:80"
-    - "security.ubuntu.com:80"
-    - "ports.ubuntu.com:80"
-
-    # Playwright — only hit when a project pins its own Playwright version and
-    # fetches the matching browser build at runtime. On amd64 cdn.playwright.dev
-    # 302s to Google's Chrome-for-Testing bucket, hence storage.googleapis.com.
+    # Playwright. On amd64 cdn.playwright.dev 302s to Google's
+    # Chrome-for-Testing bucket, hence storage.googleapis.com.
     - "cdn.playwright.dev:443"
     - "playwright.download.prss.microsoft.com:443"
     - "storage.googleapis.com:443"
@@ -56,17 +62,73 @@ network:
     - "php.net:443"
     - "www.php.net:443"
 
+commands:
+  install:
+    - command: |
+        set -eu
+        command -v php >/dev/null && exit 0
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath \
+          php-sqlite3 php-mysql php-gd php-redis php-pgsql php-imagick \
+          php-memcached unzip ca-certificates
+        rm -rf /var/lib/apt/lists/*
+      user: "0"
+      description: Install PHP and the common extensions
+
+    - command: |
+        set -eu
+        command -v composer >/dev/null && exit 0
+        php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+        php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+        rm -f /tmp/composer-setup.php
+      user: "0"
+      description: Install Composer
+
+    - command: |
+        set -eu
+        # Agent base images ship Node 20, too old for modern TypeScript.
+        # Compare the major numerically — a glob would need a new branch every
+        # time the version grows a digit.
+        major=$(node -v 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\).*/\1/p')
+        if [ -n "$major" ] && [ "$major" -ge 22 ]; then exit 0; fi
+        npm install -g n
+        n 22
+      user: "0"
+      description: Ensure Node 22 or newer
+
+    - command: |
+        set -eu
+        [ -x /usr/local/bin/chromium ] && exit 0
+        # The apt chromium-browser package is a non-functional snap stub on
+        # ARM64, so the browser comes from Playwright instead. /opt keeps it
+        # readable by the agent user (root's home is 0700).
+        export PLAYWRIGHT_BROWSERS_PATH=/opt/chromium
+        npx --yes playwright install --with-deps chromium
+        chmod -R o+rx /opt/chromium
+        CHROMIUM_PATH=$(find /opt/chromium -name chrome -path '*/chrome-linux/*' | head -1)
+        ln -sf "$CHROMIUM_PATH" /usr/local/bin/chromium
+      user: "0"
+      description: Install headless Chromium via Playwright
+
+    - command: |
+        set -eu
+        command -v agent-browser >/dev/null && exit 0
+        npm install -g agent-browser
+      user: "0"
+      description: Install the agent-browser CLI
+
 memory: |
-  ## Turbo sandbox
+  ## Turbo toolchain
 
   PHP with the common extensions (mbstring, xml, curl, zip, intl, bcmath,
   sqlite3, mysql, gd, redis, pgsql, imagick, memcached), Composer, Node 22 and
   npm are all on PATH.
 
-  The PHP version is whatever Ubuntu's `php-cli` currently provides — it is not
-  pinned, so it moves when the image is rebuilt. Run `php -v` rather than
-  assuming a version, and check it against the project's `composer.json`
-  `require.php` constraint before blaming a failing install on something else.
+  The PHP version is whatever the base image's `php-cli` provides — it is not
+  pinned. Run `php -v` rather than assuming a version, and check it against the
+  project's `composer.json` `require.php` constraint before blaming a failing
+  install on something else.
 
   Headless Chromium is at `/usr/local/bin/chromium` with the `agent-browser`
   CLI installed globally; `AGENT_BROWSER_EXECUTABLE_PATH` already points at it,
@@ -80,6 +142,6 @@ memory: |
   with a proxy error (often a 502 or a "Blocked by network policy" body) is
   usually policy rather than the service being down. Ask the user to run
   `sbx policy ls` and `sbx policy log <sandbox>` on their host, and to add the
-  host with `sbx policy allow network <sandbox> <domain>` if it should be
-  reachable. A domain needed by every project belongs in this kit's
+  host with `sbx policy allow network --sandbox <sandbox> <domain>` if it
+  should be reachable. A domain needed by every project belongs in this kit's
   `network.allowedDomains` instead.
