@@ -1,7 +1,7 @@
 # Turbo kit
 
 A [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit that gives Claude Code a
-Laravel-ready sandbox: PHP 8.4 with the common extensions, Composer, Node 22, headless Chromium
+Laravel-ready sandbox: PHP with the common extensions, Composer, Node 22, headless Chromium
 and `agent-browser`.
 
 It is a `kind: sandbox` kit that `extends: claude`, so it inherits Claude Code's entrypoint and

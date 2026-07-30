@@ -2,7 +2,7 @@ schemaVersion: "1"
 kind: sandbox
 name: turbo
 displayName: Turbo
-description: "Springloaded's Laravel sandbox for Claude Code — PHP 8.4, Composer, Node 22, headless Chromium and agent-browser."
+description: "Springloaded's Laravel sandbox for Claude Code — PHP, Composer, Node 22, headless Chromium and agent-browser."
 
 # Inherits Claude Code's entrypoint and Anthropic OAuth credential block from
 # the built-in agent, so none of that is restated here. Do not redeclare the
@@ -59,9 +59,14 @@ network:
 memory: |
   ## Turbo sandbox
 
-  PHP 8.4 with the common extensions (mbstring, xml, curl, zip, intl, bcmath,
+  PHP with the common extensions (mbstring, xml, curl, zip, intl, bcmath,
   sqlite3, mysql, gd, redis, pgsql, imagick, memcached), Composer, Node 22 and
   npm are all on PATH.
+
+  The PHP version is whatever Ubuntu's `php-cli` currently provides — it is not
+  pinned, so it moves when the image is rebuilt. Run `php -v` rather than
+  assuming a version, and check it against the project's `composer.json`
+  `require.php` constraint before blaming a failing install on something else.
 
   Headless Chromium is at `/usr/local/bin/chromium` with the `agent-browser`
   CLI installed globally; `AGENT_BROWSER_EXECUTABLE_PATH` already points at it,

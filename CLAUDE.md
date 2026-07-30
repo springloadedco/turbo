@@ -19,7 +19,7 @@ The `Dockerfile` builds the template image the kit points at
 
 | Path | Purpose |
 |---|---|
-| `Dockerfile` | Template image — PHP 8.4, Composer, Node 22, Chromium, agent-browser |
+| `Dockerfile` | Template image — PHP, Composer, Node 22, Chromium, agent-browser |
 | `kit/spec.yaml` | The kit |
 | `kit/files/home/` | Files copied into `/home/agent/` — currently the agent-browser skill |
 | `skills/` | Publishable skills (`npx skills` well-known location) |

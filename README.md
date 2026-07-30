@@ -5,7 +5,7 @@
 Turbo is Springloaded's setup for AI-assisted Laravel development. It's two independent pieces:
 
 - **A [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit** — one command gives you an
-  isolated Claude Code sandbox with PHP 8.4, Composer, Node 22, headless Chromium and
+  isolated Claude Code sandbox with PHP, Composer, Node 22, headless Chromium and
   `agent-browser`, plus a per-sandbox network allowlist.
 - **A skills library** — Springloaded's Laravel and GitHub conventions, installed per project with
   [`npx skills`](https://skills.sh) and usable by any agent that supports skills (Claude, Cursor,
@@ -42,7 +42,7 @@ On the first run you'll be prompted to authenticate with Claude. That's once per
 
 | | |
 |---|---|
-| PHP | 8.4 with mbstring, xml, curl, zip, intl, bcmath, sqlite3, mysql, pgsql, gd, redis, imagick, memcached |
+| PHP | Ubuntu's current `php-cli` (8.5 as of writing) with mbstring, xml, curl, zip, intl, bcmath, sqlite3, mysql, pgsql, gd, redis, imagick, memcached |
 | Node | 22 (the base image ships 20) |
 | Tooling | Composer, headless Chromium, [agent-browser](https://agent-browser.dev) |
 
