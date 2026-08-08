@@ -48,15 +48,30 @@ sbx run --kit ~/.turbo/kit --template docker.io/springloadedco/turbo:latest clau
 ```
 
 Or reference the published artifact instead of a checkout, using the digest from the
-[latest release](https://github.com/springloadedco/turbo/releases) — remote kit references must be
+[latest release](https://github.com/springloadedco/turbo/releases) — remote OCI references must be
 pinned to a digest, since sbx rejects tags:
 
 ```bash
 sbx run --kit oci://docker.io/springloadedco/turbo-kit@sha256:<digest> claude
 ```
 
-Either way, the reference is only needed when the sandbox is created. After that, re-attach with
-`sbx run --name <sandbox-name>`.
+Or point sbx straight at this repository — no clone, no digest to look up. Remote kit sources are
+allowlisted and default to `docker.io/` only, so this takes a one-time settings change:
+
+```bash
+sbx settings set kit.allowedSources '["docker.io/","github.com/springloadedco/"]'
+sbx run --kit 'git+https://github.com/springloadedco/turbo.git#dir=kit' claude
+```
+
+The allowlist entry is the plain `host/org/` prefix, not the `git+https://` URL. Add `ref=` to pin
+a tag or branch — `#ref=v1.0&dir=kit`. Without it the reference tracks the default branch, which is
+the trade-off against an OCI digest: convenient, but not reproducible.
+
+Any of these still needs `--template docker.io/springloadedco/turbo:latest` to get the prebuilt
+image; without it the kit installs the toolchain itself on first create.
+
+Whichever you use, the reference is only needed when the sandbox is created. After that, re-attach
+with `sbx run --name <sandbox-name>`.
 
 </details>
 
