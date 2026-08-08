@@ -233,7 +233,16 @@ commands:
         # needs to write here. Root-owned, it fails with EACCES.
         chown -R 1000:1000 /opt/chromium
         chmod -R o+rX /opt/chromium
-        CHROMIUM_PATH=$(find /opt/chromium -name chrome -path '*/chrome-linux/*' | head -1)
+        # The extracted directory name is not stable across architectures:
+        # amd64 now gets Chrome for Testing (chrome-linux64/), arm64 still gets
+        # Playwright's own build (chrome-linux/). Match on the registry
+        # directory instead — `chromium-*` is the full browser,
+        # `chromium_headless_shell-*` is the shell we don't want.
+        CHROMIUM_PATH=$(find /opt/chromium -type f -name chrome -perm -u+x -path '*/chromium-*' | head -1)
+        # Without this, an empty match reaches `ln` as "no such file or
+        # directory" — a message that says nothing about what actually broke.
+        [ -n "$CHROMIUM_PATH" ] \
+          || { echo "chromium: no chrome binary under /opt/chromium — Playwright's layout changed" >&2; exit 1; }
         ln -sf "$CHROMIUM_PATH" /usr/local/bin/chromium
       user: "0"
       description: Install headless Chromium via Playwright
