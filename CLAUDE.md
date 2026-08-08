@@ -63,9 +63,28 @@ iterate against the working copy. See `kit/README.md` for details.
 - **The two `validate` warnings are expected.** `network.allowedDomains` and `memory` are flagged in
   favour of `caps.network.allow` / `agentContext` — an *intermediate* v2 draft spelling that the
   published v2 grammar has since renamed again. Don't chase it.
+- **Only *top-level* spec fields are strictly decoded.** An unknown key at the root fails validate
+  (`field not found in type spec.SpecFile`), but a typo *inside* a block is silently dropped —
+  `credentials.sentry.apiKey.totallyBogusField` validates clean. Never take `VALID` as proof a
+  nested block was understood; diff `sbx kit inspect --json` against what you wrote.
+- **`commands.startup` takes argv (`[]string`); `commands.install` takes a shell string.** A
+  startup hook that needs shell syntax has to spell out `["sh", "-c", "..."]`. Startup runs on
+  every sandbox *start*, so those hooks must be idempotent and must never exit non-zero.
+- **Proxy-injected credentials are `network.serviceDomains` + `network.serviceAuth`** in v1; they
+  normalise into `credentials[].apiKey.inject[]`. `sbx secret set` only accepts its built-in
+  service list, so anything else (Sentry, a private API) is bound host-side with
+  `sbx secret set-custom --host <pattern> --env <VAR>`: the sandbox env var holds a placeholder and
+  the proxy substitutes the real value into outbound headers.
 - **Guard every install command** on the binary it provides. Installs run at every sandbox creation,
   including recreates; the guards are what make the prebuilt image fast (~1s for all five) while
   keeping a stock base workable.
+- **`*` in an allowlist host never crosses a dot; `**` does.** `*.example.com` matches exactly one
+  label — `api.example.com`, but neither the apex `example.com` nor a deeper `a.b.example.com`.
+  Partial labels are fine (`bedrock-*.amazonaws.com`). A standalone `**` label matches any number
+  of labels *including zero*, so `**.example.com` covers the apex and every depth below it. A `**`
+  embedded in a label (`a**.example.com`) still won't cross a dot. Omitting `:port` means any port;
+  URLs and path suffixes are rejected. The authoritative wording is the `allowed_domains` jsonschema
+  description in the sbx binary — `grep -a 'A standalone \*\*' $(command -v sbx)`.
 - **The allowlist must cover install time, not just runtime.** `apt-get update` refreshes every
   configured source — including Docker's repo on `*-docker` template variants — and `n` fetches Node
   from `nodejs.org`.

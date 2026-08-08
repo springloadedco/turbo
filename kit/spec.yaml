@@ -35,6 +35,18 @@ network:
     - "packagist.org:443"
     - "repo.packagist.org:443"
     - "getcomposer.org:443"
+    # Composer's installer signature, checked before the installer is run.
+    - "composer.github.io:443"
+
+    # Commercial Composer repositories. The paid half of the Laravel ecosystem
+    # is not on Packagist — each vendor runs its own Satis that Composer hits
+    # directly. Credentials still have to come from the project's auth.json;
+    # allowlisting only means a missing licence fails as an auth error instead
+    # of as an inscrutable network one.
+    - "nova.laravel.com:443"
+    - "spark.laravel.com:443"
+    - "composer.fluxui.dev:443"
+    - "satis.spatie.be:443"
 
     # Node / npm. `n` downloads the Node tarball from nodejs.org.
     - "registry.npmjs.org:443"
@@ -54,13 +66,59 @@ network:
     - "playwright.download.prss.microsoft.com:443"
     - "storage.googleapis.com:443"
 
-    # Documentation the agent reaches for during Laravel work
+    # Laravel first-party. Matching is per-host, not per-domain, so every
+    # laravel.com subdomain has to be named. boost.laravel.com is the hosted
+    # docs API behind Boost's `search-docs` MCP tool — blocked, every call to
+    # it fails, which is the single most likely thing to break agent work in a
+    # Laravel project.
     - "laravel.com:443"
+    - "boost.laravel.com:443"
+    - "api.laravel.com:443"
     - "livewire.laravel.com:443"
+    - "laravel-news.com:443"
+    # `curl https://laravel.build/my-app | bash` scaffolds a new application.
+    - "laravel.build:443"
+
+    # Documentation the agent reaches for during Laravel work
+    - "fluxui.dev:443"
+    - "filamentphp.com:443"
     - "inertiajs.com:443"
+    - "pestphp.com:443"
+    - "phpunit.de:443"
+    - "docs.phpunit.de:443"
+    - "spatie.be:443"
+    - "symfony.com:443"
+    - "alpinejs.dev:443"
     - "tailwindcss.com:443"
+    - "vite.dev:443"
     - "php.net:443"
     - "www.php.net:443"
+
+    # Sentry. `*` matches within one label and never crosses a dot, so
+    # `*.sentry.io` would cover docs.sentry.io but not the DSN host a modern
+    # project actually reports to — those are region-scoped and three labels
+    # deep (o123456.ingest.us.sentry.io). `**` is the standalone any-depth
+    # label, and it covers the apex too — sentry.io is listed on its own line
+    # only because the apex is worth seeing in `sbx policy ls`. sentry-cdn.com is
+    # a separate domain, not a subdomain: it serves the browser SDK loader and
+    # the `@sentry/cli` binary that `@sentry/vite-plugin` fetches on install.
+    # sentry.dev is a third domain again — it is where the hosted MCP server
+    # lives (mcp.sentry.dev), so `**.sentry.io` does not reach it.
+    - "sentry.io:443"
+    - "**.sentry.io:443"
+    - "**.sentry-cdn.com:443"
+    - "**.sentry.dev:443"
+
+    # Fetched by Chromium when agent-browser renders a Laravel app rather than
+    # by any install step. The starter kits load their typeface from Bunny
+    # Fonts, Filament uses Google Fonts, and plenty of Blade layouts pull
+    # Alpine or Livewire off a public CDN. Blocked, these show up as an
+    # unstyled or half-dead screenshot instead of an obvious network failure.
+    - "fonts.bunny.net:443"
+    - "fonts.googleapis.com:443"
+    - "fonts.gstatic.com:443"
+    - "cdn.jsdelivr.net:443"
+    - "unpkg.com:443"
 
 commands:
   install:
@@ -79,9 +137,20 @@ commands:
     - command: |
         set -eu
         command -v composer >/dev/null && exit 0
-        php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+        # `copy()` returns false rather than throwing, so check it — otherwise a
+        # blocked download surfaces one line later as a baffling
+        # "Could not open input file". Then verify against the SHA-384 upstream
+        # publishes for the installer: this script runs as root in every sandbox.
+        php -r "exit(copy('https://getcomposer.org/installer', '/tmp/composer-setup.php') ? 0 : 1);" \
+          || { echo "composer: could not download the installer (network policy?)" >&2; exit 1; }
+        php -r "exit(copy('https://composer.github.io/installer.sig', '/tmp/composer-setup.sig') ? 0 : 1);" \
+          || { echo "composer: could not download the installer signature" >&2; exit 1; }
+        expected=$(tr -d ' \n\r' < /tmp/composer-setup.sig)
+        actual=$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")
+        [ -n "$expected" ] && [ "$expected" = "$actual" ] \
+          || { echo "composer: installer checksum mismatch — refusing to run it" >&2; exit 1; }
         php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
-        rm -f /tmp/composer-setup.php
+        rm -f /tmp/composer-setup.php /tmp/composer-setup.sig
       user: "0"
       description: Install Composer
 
@@ -92,8 +161,38 @@ commands:
         # time the version grows a digit.
         major=$(node -v 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\).*/\1/p')
         if [ -n "$major" ] && [ "$major" -ge 22 ]; then exit 0; fi
-        npm install -g n
-        n 22
+
+        if command -v npm >/dev/null; then
+            npm install -g n
+            n 22
+            exit 0
+        fi
+
+        # No node at all — and therefore no npm to bootstrap `n` with. The kit
+        # layers onto any base, including ones with no JS runtime (`shell`), so
+        # fall back to the official tarball.
+        if ! command -v curl >/dev/null || ! command -v xz >/dev/null; then
+            apt-get update
+            apt-get install -y --no-install-recommends curl xz-utils ca-certificates
+            rm -rf /var/lib/apt/lists/*
+        fi
+        case "$(uname -m)" in
+            x86_64)  arch=x64 ;;
+            aarch64) arch=arm64 ;;
+            *) echo "node: no official tarball for $(uname -m)" >&2; exit 1 ;;
+        esac
+        dist=https://nodejs.org/dist/latest-v22.x
+        # The checksum file names the current patch release, so it doubles as
+        # version discovery and as the integrity check.
+        curl -fsSL -o /tmp/node-sums.txt "$dist/SHASUMS256.txt"
+        tarball=$(sed -n "s/^[0-9a-f]\{64\}  \(node-v22\.[0-9.]*-linux-$arch\.tar\.xz\)$/\1/p" \
+                  /tmp/node-sums.txt | head -1)
+        [ -n "$tarball" ] || { echo "node: no linux-$arch tarball in $dist" >&2; exit 1; }
+        curl -fsSL -o "/tmp/$tarball" "$dist/$tarball"
+        (cd /tmp && grep " $tarball\$" node-sums.txt | sha256sum -c -)
+        tar -xJf "/tmp/$tarball" -C /usr/local --strip-components=1 \
+            --exclude CHANGELOG.md --exclude LICENSE --exclude README.md
+        rm -f "/tmp/$tarball" /tmp/node-sums.txt
       user: "0"
       description: Ensure Node 22 or newer
 
@@ -105,7 +204,12 @@ commands:
         # readable by the agent user (root's home is 0700).
         export PLAYWRIGHT_BROWSERS_PATH=/opt/chromium
         npx --yes playwright install --with-deps chromium
-        chmod -R o+rx /opt/chromium
+        # Hand the tree to the agent (uid 1000), don't just make it world-readable:
+        # PLAYWRIGHT_BROWSERS_PATH is exported to the agent too, so a project that
+        # pulls its own Playwright version installs *into* this directory and
+        # needs to write here. Root-owned, it fails with EACCES.
+        chown -R 1000:1000 /opt/chromium
+        chmod -R o+rX /opt/chromium
         CHROMIUM_PATH=$(find /opt/chromium -name chrome -path '*/chrome-linux/*' | head -1)
         ln -sf "$CHROMIUM_PATH" /usr/local/bin/chromium
       user: "0"
@@ -117,6 +221,34 @@ commands:
         npm install -g agent-browser
       user: "0"
       description: Install the agent-browser CLI
+
+  # Startup hooks run on every sandbox start, not just creation, and — unlike
+  # `install` — take argv rather than a shell string, hence the explicit `sh -c`.
+  startup:
+    - command:
+        - sh
+        - -c
+        - |
+          set -eu
+          # Only Claude Code has this CLI. On codex/gemini/opencode there is
+          # nothing to register here and the mixin stays agent-agnostic.
+          command -v claude >/dev/null || exit 0
+          # The token is the gate: with no credential a registered HTTP server
+          # just fails its health check and starts an OAuth dance nobody can
+          # finish headlessly, which is worse than not registering it at all.
+          [ -n "${SENTRY_ACCESS_TOKEN:-}" ] || exit 0
+          # Idempotent — `mcp add` on an existing name is an error, and this
+          # runs again on every start.
+          claude mcp get sentry >/dev/null 2>&1 && exit 0
+          # Sentry-Bearer, not Bearer: upstream reserves plain Bearer for MCP
+          # OAuth access tokens and treats a user auth token under it as
+          # invalid. Never fatal — a failure here must not block the sandbox.
+          claude mcp add --scope user --transport http sentry \
+            https://mcp.sentry.dev/mcp \
+            --header "Authorization: Sentry-Bearer ${SENTRY_ACCESS_TOKEN}" \
+            || echo "sentry-mcp: registration failed; run the command by hand" >&2
+      user: "1000"
+      description: Register the Sentry MCP server with Claude Code
 
 memory: |
   ## Turbo toolchain
@@ -135,6 +267,29 @@ memory: |
   so don't set it yourself. There is no display server — headless only.
   Screenshots, PDFs, traces and video all work; `--headed`, `--ui` and
   `codegen` do not.
+
+  ## Sentry
+
+  Sentry's hosted MCP server is registered with Claude Code as `sentry`
+  (https://mcp.sentry.dev/mcp) whenever `SENTRY_ACCESS_TOKEN` is set. Use it
+  for issues, events and Seer root-cause runs rather than scraping the web UI.
+
+  That variable holds a *placeholder*, not the real token — the host proxy
+  swaps it into the Authorization header on the way out. Printing it, copying
+  it into a file, or sending it anywhere other than Sentry yields a useless
+  string, so don't.
+
+  If the server is missing from `/mcp`, the token was never bound. Ask the user
+  to run this on their host, then restart the sandbox:
+
+      sbx secret set-custom -g --host '**.sentry.dev' --host '**.sentry.io' \
+        --env SENTRY_ACCESS_TOKEN --value <sentry-user-auth-token>
+
+  The token is a Sentry **user auth token** needing `org:read`, `project:read`,
+  `project:write`, `team:read`, `team:write` and `event:write`. For self-hosted
+  Sentry the hosted server is the wrong target — use the stdio server instead
+  (`npx @sentry/mcp-server@latest --host=sentry.example.com`) and ask for that
+  host to be allowlisted.
 
   ## Network policy
 

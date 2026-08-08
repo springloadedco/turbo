@@ -110,6 +110,26 @@ sbx policy log <sandbox>
 
 If a domain is needed by every project, add it to `kit/spec.yaml` instead and open a PR.
 
+### Sentry MCP
+
+Sentry's hosted MCP server is allowlisted and, on the `claude` agent, registers itself as `sentry`
+on sandbox start. It needs a token, which is the one thing the kit can't ship. Bind it once on the
+host:
+
+```bash
+sbx secret set-custom -g --host '**.sentry.dev' --host '**.sentry.io' \
+  --env SENTRY_ACCESS_TOKEN --value <sentry-user-auth-token>
+```
+
+Create the token in Sentry under **User auth tokens** with `org:read`, `project:read`,
+`project:write`, `team:read`, `team:write` and `event:write`. `-g` applies it to every sandbox;
+swap it for a sandbox name to scope it to one.
+
+The sandbox never sees the real token — `SENTRY_ACCESS_TOKEN` is a placeholder that the proxy
+substitutes into the `Authorization` header on requests to Sentry, and nowhere else. Without the
+binding nothing is registered, which is deliberate: an unauthenticated HTTP MCP server only fails
+its health check and starts an OAuth flow that can't be completed headlessly.
+
 ### Extending
 
 `docker.io/springloadedco/turbo:latest`, built from this repo's `Dockerfile`, is an **optional
