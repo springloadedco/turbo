@@ -184,6 +184,31 @@ show up in `sbx policy ls` with provenance `kit` (since v0.29.0). Deny always be
 Kit sources are themselves allowlisted and default to `docker.io/` only (v0.34.0+); other registries
 and `git+` URLs need `sbx settings set kit.allowedSources`.
 
+### Kit reference forms
+
+`--kit` accepts more than its help text ("directory, ZIP, or OCI") admits — **git references work**,
+confirmed on v0.37.1:
+
+```
+./my-kit/                                        local directory
+./my-kit.zip                                     local ZIP
+ghcr.io/org/kit:tag                              OCI registry
+oci://ghcr.io/org/kit                            explicit OCI
+git+https://host/org/repo.git                    git over HTTPS
+git+ssh://git@host/org/repo.git                  git over SSH
+git+https://host/org/repo.git#ref=v1.0           at a tag or branch
+git+https://host/org/repo.git#dir=path           a subdirectory
+git+https://host/org/repo.git#ref=v1.0&dir=path  both
+```
+
+Turbo's kit lives in `kit/`, so the reference needs `#dir=kit`. A `ref=` may contain slashes
+(`#ref=feat/some-branch&dir=kit` resolves). Unlike OCI, git references are **not** digest-pinned —
+without `ref=` they track the default branch.
+
+The `kit.allowedSources` entry is the plain `host/org/` prefix (`github.com/springloadedco/`), not
+the `git+https://` URL. When a source is blocked, sbx prints the exact `sbx settings set` command to
+run, so read the error rather than guessing the prefix.
+
 ### Secrets
 
 Secrets are **not** env vars in the VM — the host proxy injects them as HTTP auth headers, so the
