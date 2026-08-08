@@ -20,7 +20,7 @@ applies to the `claude` agent. Published by `.github/workflows/publish-sandbox.y
 
 | Path | Purpose |
 |---|---|
-| `Dockerfile` | Accelerator image — PHP, Composer, Node 22, Chromium, agent-browser |
+| `Dockerfile` | Accelerator image — PHP, Composer, Forge CLI, Node 22, Chromium, agent-browser |
 | `kit/spec.yaml` | The kit |
 | `kit/files/home/` | Files copied into `/home/agent/` — the agent-browser skill, at two paths |
 | `install.sh` | Installs the `turbo` shell shorthand |
@@ -76,7 +76,7 @@ iterate against the working copy. See `kit/README.md` for details.
   `sbx secret set-custom --host <pattern> --env <VAR>`: the sandbox env var holds a placeholder and
   the proxy substitutes the real value into outbound headers.
 - **Guard every install command** on the binary it provides. Installs run at every sandbox creation,
-  including recreates; the guards are what make the prebuilt image fast (~1s for all five) while
+  including recreates; the guards are what make the prebuilt image fast (~1s for all of them) while
   keeping a stock base workable.
 - **`*` in an allowlist host never crosses a dot; `**` does.** `*.example.com` matches exactly one
   label — `api.example.com`, but neither the apex `example.com` nor a deeper `a.b.example.com`.

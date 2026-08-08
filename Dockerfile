@@ -16,6 +16,14 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
   && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
   && rm composer-setup.php
 
+# Laravel Forge CLI. COMPOSER_HOME is set for this layer only — as a persistent
+# ENV it would also redirect the agent's own `composer global require` into this
+# root-owned directory.
+RUN COMPOSER_HOME=/opt/composer-global COMPOSER_ALLOW_SUPERUSER=1 \
+  composer global require laravel/forge-cli --no-interaction --no-progress \
+  && chmod -R o+rX /opt/composer-global \
+  && ln -s /opt/composer-global/vendor/bin/forge /usr/local/bin/forge
+
 # Chromium via Playwright (works on both amd64 and arm64).
 # The apt chromium-browser package is a non-functional snap stub on ARM64.
 # Install to /opt/chromium so the agent user can access it (default /root is 700).

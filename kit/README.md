@@ -1,8 +1,8 @@
 # Turbo kit
 
 A [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit that gives a sandbox agent a
-Laravel toolchain: PHP with the common extensions, Composer, Node 22, headless Chromium and
-`agent-browser`.
+Laravel toolchain: PHP with the common extensions, Composer, the Forge CLI, Node 22, headless
+Chromium and `agent-browser`.
 
 It is a **`kind: mixin`** with no `requires.agent`, so it layers onto any base agent:
 
@@ -46,7 +46,7 @@ Every install command exits early when its binary is already present:
 command -v php >/dev/null && exit 0
 ```
 
-On the prebuilt image all five guards no-op — measured at roughly one second total. On a stock
+On the prebuilt image every guard no-ops — measured at roughly one second total. On a stock
 agent base they install the toolchain once. The same artifact is therefore both the fast path and
 the portable one.
 

@@ -2,7 +2,7 @@ schemaVersion: "1"
 kind: mixin
 name: turbo
 displayName: Turbo
-description: "Springloaded's Laravel toolchain for sandbox agents — PHP with the common extensions, Composer, Node 22, headless Chromium and agent-browser. Layers onto any base agent."
+description: "Springloaded's Laravel toolchain for sandbox agents — PHP with the common extensions, Composer, the Forge CLI, Node 22, headless Chromium and agent-browser. Layers onto any base agent."
 
 # Deliberately no `requires.agent` — this mixin sets nothing agent-specific, so
 # it composes onto claude, codex, gemini, opencode, or anything else.
@@ -73,6 +73,8 @@ network:
     # Laravel project.
     - "laravel.com:443"
     - "boost.laravel.com:443"
+    # The Forge CLI's API base (overridable with FORGE_API_BASE).
+    - "forge.laravel.com:443"
     - "api.laravel.com:443"
     - "livewire.laravel.com:443"
     - "laravel-news.com:443"
@@ -153,6 +155,27 @@ commands:
         rm -f /tmp/composer-setup.php /tmp/composer-setup.sig
       user: "0"
       description: Install Composer
+
+    - command: |
+        set -eu
+        command -v forge >/dev/null && exit 0
+        # laravel/forge-cli requires PHP 8.2. The kit does not pin a PHP version
+        # — it takes whatever the base image's php-cli is — so an older base is
+        # a skip with a warning, not a failed sandbox creation.
+        if ! php -r 'exit(PHP_VERSION_ID >= 80200 ? 0 : 1);'; then
+            echo "forge: laravel/forge-cli needs PHP 8.2+, found $(php -r 'echo PHP_VERSION;') — skipping" >&2
+            exit 0
+        fi
+        # A *shared* COMPOSER_HOME, not root's. Installs run as root while the
+        # agent is uid 1000, so the default ~/.config/composer would bury the
+        # binary in root's home; /opt is readable by everyone and leaves the
+        # agent's own `composer global require` untouched.
+        export COMPOSER_HOME=/opt/composer-global COMPOSER_ALLOW_SUPERUSER=1
+        composer global require laravel/forge-cli --no-interaction --no-progress
+        chmod -R o+rX /opt/composer-global
+        ln -sf /opt/composer-global/vendor/bin/forge /usr/local/bin/forge
+      user: "0"
+      description: Install the Laravel Forge CLI
 
     - command: |
         set -eu
@@ -267,6 +290,42 @@ memory: |
   so don't set it yourself. There is no display server — headless only.
   Screenshots, PDFs, traces and video all work; `--headed`, `--ui` and
   `codegen` do not.
+
+  ## Laravel Forge
+
+  The `forge` CLI (`laravel/forge-cli`) is on PATH and talks to
+  https://forge.laravel.com/api/. It falls back to `FORGE_API_TOKEN` when no
+  token is stored, so when that variable is set there is nothing to log in to.
+  Don't run `forge login` — a token stored in `~/.laravel-forge/config.json`
+  takes **precedence** over the environment, so logging in would shadow the
+  variable with whatever was typed.
+
+  If `FORGE_API_TOKEN` is set it holds a *placeholder*, not the real token: the
+  host proxy swaps it into the Authorization header on requests to
+  forge.laravel.com. Printing it or sending it anywhere else yields a useless
+  string.
+
+  Most commands act on a selected organization and server — `forge org:switch`
+  and `forge server:switch` write that choice to the same config file. A
+  complaint about no organization being selected is that, not an auth failure.
+
+  If the CLI reports it is unauthenticated, the token was never bound. Ask the
+  user to run this on their host, then restart the sandbox:
+
+      sbx secret set-custom -g --host 'forge.laravel.com' \
+        --env FORGE_API_TOKEN --value <forge-api-token>
+
+  Tokens come from https://forge.laravel.com/user-profile/api.
+
+  Forge changes production infrastructure. Read-only commands (`forge server:list`,
+  `forge site:list`, `forge deploy:logs`) are fine to run when they answer a
+  question, but anything that deploys, restarts, or destroys needs the user to
+  ask for it explicitly first.
+
+  Only the Forge API itself is on the network allowlist. Commands that connect
+  to a provisioned server directly — `forge ssh`, and anything tunnelling
+  through it — target that server's own address, which is not allowlisted and
+  will fail until the user adds it.
 
   ## Sentry
 

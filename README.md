@@ -5,9 +5,9 @@
 Turbo is Springloaded's setup for AI-assisted Laravel development. It's two independent pieces:
 
 - **A [Docker Sandboxes](https://docs.docker.com/ai/sandboxes/) kit** — one command gives you an
-  isolated agent sandbox with PHP, Composer, Node 22, headless Chromium and `agent-browser`, plus a
-  per-sandbox network allowlist. It's a mixin, so it layers onto **any** agent — Claude, Codex,
-  Gemini, opencode.
+  isolated agent sandbox with PHP, Composer, the Forge CLI, Node 22, headless Chromium and
+  `agent-browser`, plus a per-sandbox network allowlist. It's a mixin, so it layers onto **any**
+  agent — Claude, Codex, Gemini, opencode.
 - **A skills library** — Springloaded's Laravel and GitHub conventions, installed per project with
   [`npx skills`](https://skills.sh) and usable by any agent that supports skills (Claude, Cursor,
   Codex, Copilot).
@@ -84,7 +84,14 @@ To skip the prebuilt image and always install from the stock base, set `TURBO_TE
 |---|---|
 | PHP | Ubuntu's current `php-cli` (8.5 as of writing) with mbstring, xml, curl, zip, intl, bcmath, sqlite3, mysql, pgsql, gd, redis, imagick, memcached |
 | Node | 22 (the base image ships 20) |
-| Tooling | Composer, headless Chromium, [agent-browser](https://agent-browser.dev) |
+| Tooling | Composer, the [Forge CLI](https://forge.laravel.com/docs/cli), headless Chromium, [agent-browser](https://agent-browser.dev) |
+
+The Forge CLI authenticates from `FORGE_API_TOKEN`. Bind it once on the host and the proxy injects
+it into requests to `forge.laravel.com`, so the real token never enters the sandbox:
+
+```bash
+sbx secret set-custom -g --host 'forge.laravel.com' --env FORGE_API_TOKEN --value <token>
+```
 
 The agent-browser skill ships inside the kit, so the agent knows how to drive the browser with no
 host-side install.
