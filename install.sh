@@ -53,7 +53,10 @@ fi
 shell_name="$(basename "${SHELL:-bash}")"
 case "$shell_name" in
     zsh)  rc="$HOME/.zshrc" ;;
-    bash) if [ "$(uname -s)" = "Darwin" ] && [ -f "$HOME/.bash_profile" ]; then
+          # macOS terminals start bash as a *login* shell, which reads
+          # .bash_profile and never .bashrc — so target it whether or not it
+          # already exists, otherwise the block lands in a file nothing sources.
+    bash) if [ "$(uname -s)" = "Darwin" ]; then
               rc="$HOME/.bash_profile"
           else
               rc="$HOME/.bashrc"
@@ -70,9 +73,27 @@ if [ -z "$rc" ]; then
     warn "Unrecognised shell '$shell_name'. Add this to your shell rc by hand:"
     printf '\n%s\n\n' "$snippet"
 elif [ -f "$rc" ] && grep -qF "$START_MARKER" "$rc"; then
-    # The block only sources a tracked file, so an existing one stays correct
-    # across updates — nothing to rewrite.
-    info "Already wired into $rc"
+    # The block sources a tracked file, so it stays current across updates on its
+    # own — but it also pins TURBO_HOME, so a re-run that relocates the checkout
+    # has to rewrite it or the old path keeps winning.
+    if grep -qF "export TURBO_HOME=\"$TURBO_HOME\"" "$rc"; then
+        info "Already wired into $rc"
+    elif ! grep -qF "$END_MARKER" "$rc"; then
+        warn "The turbo block in $rc has no closing marker — leaving it alone."
+        warn "Replace it by hand with:"
+        printf '\n%s\n\n' "$snippet"
+    else
+        info "Repointing the turbo block in $rc at $TURBO_HOME"
+        tmp="$(mktemp)"
+        awk -v start="$START_MARKER" -v end="$END_MARKER" -v block="$snippet" '
+            $0 == start { skip = 1; print block; next }
+            $0 == end   { skip = 0; next }
+            !skip
+        ' "$rc" > "$tmp"
+        # Write through the original file so its mode and inode survive.
+        cat "$tmp" > "$rc"
+        rm -f "$tmp"
+    fi
 else
     info "Adding the turbo function to $rc"
     printf '\n%s\n' "$snippet" >> "$rc"
