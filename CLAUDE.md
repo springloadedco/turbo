@@ -238,8 +238,25 @@ baked template, or `host.docker.internal` plus a `Host:` header.
 - The apt `chromium-browser` package on ARM64 Ubuntu is a non-functional snap stub. Chromium comes
   from Playwright into `/opt/chromium`, symlinked to `/usr/local/bin/chromium`, with
   `AGENT_BROWSER_EXECUTABLE_PATH` set.
+- **The extracted browser directory name differs per architecture.** amd64 gets Chrome for Testing
+  in `chrome-linux64/`, arm64 gets Playwright's own build in `chrome-linux/` — it's a per-platform
+  table (`EXECUTABLE_PATHS`) inside playwright-core, so never match on it. Match the *registry*
+  directory (`chromium-<rev>`) instead. This cost four months of failed publishes once already.
+- **`/opt/chromium` must be owned by uid 1000, not merely world-readable.** `PLAYWRIGHT_BROWSERS_PATH`
+  points there and is exported to the agent, so a project pulling its own Playwright version installs
+  *into* it. Root-owned, that fails with EACCES. The kit repairs ownership *before* its early-exit
+  guard precisely so it can fix a template that shipped the symlink over a root-owned tree.
+- **`PLAYWRIGHT_SKIP_BROWSER_GC=1` is load-bearing.** Playwright deletes revisions its `.links`
+  entries no longer reference. Ours is written by a root `npx --yes`, so it points into `/root/.npm`,
+  which uid 1000 cannot read — without the opt-out, the agent's own `playwright install` classifies
+  the link broken and deletes the revision `/usr/local/bin/chromium` resolves through. Install hooks
+  run only at creation, so nothing would repair the dangling symlink.
 - After changing the Dockerfile, verify agent-browser still works:
   ```bash
   docker run --rm --user agent <image> agent-browser batch "open file:///dev/null" "screenshot"
   ```
-  Building needs `cdn.playwright.dev` and `playwright.download.prss.microsoft.com` reachable.
+  CI now runs exactly this on an amd64 `load: true` build — the multi-arch build alone only proves
+  the Dockerfile exits 0, never that the resolved binary launches.
+  Building needs `cdn.playwright.dev`, `playwright.download.prss.microsoft.com` and
+  `storage.googleapis.com` (amd64's Chrome-for-Testing bucket, which `cdn.playwright.dev` 302s to)
+  reachable.

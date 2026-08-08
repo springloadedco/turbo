@@ -1,0 +1,5 @@
+# The Dockerfile has no COPY, so the build context only needs to exist. Sending
+# the repo anyway is wasted upload — and `.git/config` carries the credential
+# `actions/checkout` persists, which a PR-authored Dockerfile could `COPY` and
+# print now that pull requests build this image.
+*
