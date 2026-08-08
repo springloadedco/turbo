@@ -1,0 +1,145 @@
+name: kit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'kit/**'
+      - 'install.sh'
+      - 'shell/**'
+      - '.github/workflows/kit.yml'
+  pull_request:
+    paths:
+      - 'kit/**'
+      - 'install.sh'
+      - 'shell/**'
+      - '.github/workflows/kit.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish the kit under (e.g. 1.0). Consumers still reference the digest.'
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Bump deliberately — the kit spec grammar the CLI accepts is tied to this.
+  # v0.37.1 normalises schemaVersion "1" and rejects the current v2 grammar.
+  SBX_VERSION: v0.37.1
+  KIT_REPO: docker.io/springloadedco/turbo-kit
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install sbx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$SBX_VERSION" \
+            --repo docker/sbx-releases \
+            --pattern 'DockerSandboxes-linux-amd64.tar.gz' \
+            --output sbx.tar.gz
+          tar -xzf sbx.tar.gz
+          echo "$PWD/docker-sbx" >> "$GITHUB_PATH"
+
+      - name: Validate kit
+        run: |
+          sbx kit validate ./kit/
+          sbx kit inspect ./kit/ --json > kit.json
+          jq '.warnings' kit.json
+
+      - name: Pack kit
+        run: sbx kit pack ./kit/ -o turbo-kit.zip
+
+  shell:
+    # The installer and the `turbo` function ship to users' shells but are not
+    # part of the kit artifact, so nothing else here would catch a syntax slip.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Lint the installer and shell helpers
+        run: |
+          bash -n install.sh
+          bash -n shell/turbo.sh
+          shellcheck -s bash install.sh shell/turbo.sh
+
+  publish:
+    # Only on a published release or an explicit dispatch — never on every main push.
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install sbx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$SBX_VERSION" \
+            --repo docker/sbx-releases \
+            --pattern 'DockerSandboxes-linux-amd64.tar.gz' \
+            --output sbx.tar.gz
+          tar -xzf sbx.tar.gz
+          echo "$PWD/docker-sbx" >> "$GITHUB_PATH"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Resolve tag
+        id: tag
+        # Through `env:`, never `${{ }}` inside the script — the dispatch input is
+        # attacker-controlled text and this job holds a Docker Hub push token.
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          TAG="${INPUT_TAG:-$RELEASE_TAG}"
+          TAG="${TAG#v}"
+          case "$TAG" in
+            ""|*[!A-Za-z0-9._-]*) echo "Refusing to publish under tag '$TAG'" >&2; exit 1 ;;
+          esac
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Push kit
+        id: push
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -o pipefail
+          sbx kit push ./kit/ "${KIT_REPO}:${TAG}" 2>&1 | tee push.log
+          # Consumers must reference a digest — tags are rejected for remote kit refs.
+          # `|| true` so a change in push output shape falls through to the
+          # Summarise fallback instead of failing the release job (pipefail + -e).
+          DIGEST=$(grep -oE 'sha256:[0-9a-f]{64}' push.log | head -1 || true)
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          {
+            echo "### Kit published"
+            echo
+            echo '```bash'
+            if [ -n "$DIGEST" ]; then
+              echo "sbx run --kit oci://${KIT_REPO}@${DIGEST} turbo"
+            else
+              echo "# Digest not found in push output — read it from the job log."
+              echo "sbx run --kit oci://${KIT_REPO}@sha256:<digest> turbo"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

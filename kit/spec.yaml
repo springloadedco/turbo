@@ -1,0 +1,361 @@
+schemaVersion: "1"
+kind: mixin
+name: turbo
+displayName: Turbo
+description: "Springloaded's Laravel toolchain for sandbox agents — PHP with the common extensions, Composer, the Forge CLI, Node 22, headless Chromium and agent-browser. Layers onto any base agent."
+
+# Deliberately no `requires.agent` — this mixin sets nothing agent-specific, so
+# it composes onto claude, codex, gemini, opencode, or anything else.
+#
+# Every install command is guarded on the binary it provides. On the pre-baked
+# docker.io/springloadedco/turbo:latest template they all no-op and creation is
+# instant; on a stock agent base they install the toolchain (a few minutes,
+# once). The same artifact is therefore both the fast path and the portable one.
+
+environment:
+  variables:
+    # Install hooks run as root but the agent runs as uid 1000, so Playwright's
+    # default ~/.cache/ms-playwright would leave the browser in root's home.
+    # A fixed system path shared by every user fixes that.
+    PLAYWRIGHT_BROWSERS_PATH: /opt/chromium
+    AGENT_BROWSER_EXECUTABLE_PATH: /usr/local/bin/chromium
+
+network:
+  allowedDomains:
+    # apt — apt-get update refreshes every configured source, so all of these
+    # must be reachable or it exits non-zero even when the wanted package lives
+    # elsewhere. Ubuntu serves amd64 from archive/security and arm64 from ports.
+    # The *-docker template variants pre-add Docker's apt repo.
+    - "archive.ubuntu.com:80"
+    - "security.ubuntu.com:80"
+    - "ports.ubuntu.com:80"
+    - "download.docker.com:443"
+
+    # PHP / Composer
+    - "packagist.org:443"
+    - "repo.packagist.org:443"
+    - "getcomposer.org:443"
+    # Composer's installer signature, checked before the installer is run.
+    - "composer.github.io:443"
+
+    # Commercial Composer repositories. The paid half of the Laravel ecosystem
+    # is not on Packagist — each vendor runs its own Satis that Composer hits
+    # directly. Credentials still have to come from the project's auth.json;
+    # allowlisting only means a missing licence fails as an auth error instead
+    # of as an inscrutable network one.
+    - "nova.laravel.com:443"
+    - "spark.laravel.com:443"
+    - "composer.fluxui.dev:443"
+    - "satis.spatie.be:443"
+
+    # Node / npm. `n` downloads the Node tarball from nodejs.org.
+    - "registry.npmjs.org:443"
+    - "nodejs.org:443"
+
+    # GitHub
+    - "github.com:443"
+    - "api.github.com:443"
+    - "codeload.github.com:443"
+    - "raw.githubusercontent.com:443"
+    - "objects.githubusercontent.com:443"
+    - "release-assets.githubusercontent.com:443"
+
+    # Playwright. On amd64 cdn.playwright.dev 302s to Google's
+    # Chrome-for-Testing bucket, hence storage.googleapis.com.
+    - "cdn.playwright.dev:443"
+    - "playwright.download.prss.microsoft.com:443"
+    - "storage.googleapis.com:443"
+
+    # Laravel first-party. Matching is per-host, not per-domain, so every
+    # laravel.com subdomain has to be named. boost.laravel.com is the hosted
+    # docs API behind Boost's `search-docs` MCP tool — blocked, every call to
+    # it fails, which is the single most likely thing to break agent work in a
+    # Laravel project.
+    - "laravel.com:443"
+    - "boost.laravel.com:443"
+    # The Forge CLI's API base (overridable with FORGE_API_BASE).
+    - "forge.laravel.com:443"
+    - "api.laravel.com:443"
+    - "livewire.laravel.com:443"
+    - "laravel-news.com:443"
+    # `curl https://laravel.build/my-app | bash` scaffolds a new application.
+    - "laravel.build:443"
+
+    # Documentation the agent reaches for during Laravel work
+    - "fluxui.dev:443"
+    - "filamentphp.com:443"
+    - "inertiajs.com:443"
+    - "pestphp.com:443"
+    - "phpunit.de:443"
+    - "docs.phpunit.de:443"
+    - "spatie.be:443"
+    - "symfony.com:443"
+    - "alpinejs.dev:443"
+    - "tailwindcss.com:443"
+    - "vite.dev:443"
+    - "php.net:443"
+    - "www.php.net:443"
+
+    # Sentry. `*` matches within one label and never crosses a dot, so
+    # `*.sentry.io` would cover docs.sentry.io but not the DSN host a modern
+    # project actually reports to — those are region-scoped and three labels
+    # deep (o123456.ingest.us.sentry.io). `**` is the standalone any-depth
+    # label, and it covers the apex too — sentry.io is listed on its own line
+    # only because the apex is worth seeing in `sbx policy ls`. sentry-cdn.com is
+    # a separate domain, not a subdomain: it serves the browser SDK loader and
+    # the `@sentry/cli` binary that `@sentry/vite-plugin` fetches on install.
+    # sentry.dev is a third domain again — it is where the hosted MCP server
+    # lives (mcp.sentry.dev), so `**.sentry.io` does not reach it.
+    - "sentry.io:443"
+    - "**.sentry.io:443"
+    - "**.sentry-cdn.com:443"
+    - "**.sentry.dev:443"
+
+    # Fetched by Chromium when agent-browser renders a Laravel app rather than
+    # by any install step. The starter kits load their typeface from Bunny
+    # Fonts, Filament uses Google Fonts, and plenty of Blade layouts pull
+    # Alpine or Livewire off a public CDN. Blocked, these show up as an
+    # unstyled or half-dead screenshot instead of an obvious network failure.
+    - "fonts.bunny.net:443"
+    - "fonts.googleapis.com:443"
+    - "fonts.gstatic.com:443"
+    - "cdn.jsdelivr.net:443"
+    - "unpkg.com:443"
+
+commands:
+  install:
+    - command: |
+        set -eu
+        command -v php >/dev/null && exit 0
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          php-cli php-mbstring php-xml php-curl php-zip php-intl php-bcmath \
+          php-sqlite3 php-mysql php-gd php-redis php-pgsql php-imagick \
+          php-memcached unzip ca-certificates
+        rm -rf /var/lib/apt/lists/*
+      user: "0"
+      description: Install PHP and the common extensions
+
+    - command: |
+        set -eu
+        command -v composer >/dev/null && exit 0
+        # `copy()` returns false rather than throwing, so check it — otherwise a
+        # blocked download surfaces one line later as a baffling
+        # "Could not open input file". Then verify against the SHA-384 upstream
+        # publishes for the installer: this script runs as root in every sandbox.
+        php -r "exit(copy('https://getcomposer.org/installer', '/tmp/composer-setup.php') ? 0 : 1);" \
+          || { echo "composer: could not download the installer (network policy?)" >&2; exit 1; }
+        php -r "exit(copy('https://composer.github.io/installer.sig', '/tmp/composer-setup.sig') ? 0 : 1);" \
+          || { echo "composer: could not download the installer signature" >&2; exit 1; }
+        expected=$(tr -d ' \n\r' < /tmp/composer-setup.sig)
+        actual=$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")
+        [ -n "$expected" ] && [ "$expected" = "$actual" ] \
+          || { echo "composer: installer checksum mismatch — refusing to run it" >&2; exit 1; }
+        php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+        rm -f /tmp/composer-setup.php /tmp/composer-setup.sig
+      user: "0"
+      description: Install Composer
+
+    - command: |
+        set -eu
+        command -v forge >/dev/null && exit 0
+        # laravel/forge-cli requires PHP 8.2. The kit does not pin a PHP version
+        # — it takes whatever the base image's php-cli is — so an older base is
+        # a skip with a warning, not a failed sandbox creation.
+        if ! php -r 'exit(PHP_VERSION_ID >= 80200 ? 0 : 1);'; then
+            echo "forge: laravel/forge-cli needs PHP 8.2+, found $(php -r 'echo PHP_VERSION;') — skipping" >&2
+            exit 0
+        fi
+        # A *shared* COMPOSER_HOME, not root's. Installs run as root while the
+        # agent is uid 1000, so the default ~/.config/composer would bury the
+        # binary in root's home; /opt is readable by everyone and leaves the
+        # agent's own `composer global require` untouched.
+        export COMPOSER_HOME=/opt/composer-global COMPOSER_ALLOW_SUPERUSER=1
+        composer global require laravel/forge-cli --no-interaction --no-progress
+        chmod -R o+rX /opt/composer-global
+        ln -sf /opt/composer-global/vendor/bin/forge /usr/local/bin/forge
+      user: "0"
+      description: Install the Laravel Forge CLI
+
+    - command: |
+        set -eu
+        # Agent base images ship Node 20, too old for modern TypeScript.
+        # Compare the major numerically — a glob would need a new branch every
+        # time the version grows a digit.
+        major=$(node -v 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\).*/\1/p')
+        if [ -n "$major" ] && [ "$major" -ge 22 ]; then exit 0; fi
+
+        if command -v npm >/dev/null; then
+            npm install -g n
+            n 22
+            exit 0
+        fi
+
+        # No node at all — and therefore no npm to bootstrap `n` with. The kit
+        # layers onto any base, including ones with no JS runtime (`shell`), so
+        # fall back to the official tarball.
+        if ! command -v curl >/dev/null || ! command -v xz >/dev/null; then
+            apt-get update
+            apt-get install -y --no-install-recommends curl xz-utils ca-certificates
+            rm -rf /var/lib/apt/lists/*
+        fi
+        case "$(uname -m)" in
+            x86_64)  arch=x64 ;;
+            aarch64) arch=arm64 ;;
+            *) echo "node: no official tarball for $(uname -m)" >&2; exit 1 ;;
+        esac
+        dist=https://nodejs.org/dist/latest-v22.x
+        # The checksum file names the current patch release, so it doubles as
+        # version discovery and as the integrity check.
+        curl -fsSL -o /tmp/node-sums.txt "$dist/SHASUMS256.txt"
+        tarball=$(sed -n "s/^[0-9a-f]\{64\}  \(node-v22\.[0-9.]*-linux-$arch\.tar\.xz\)$/\1/p" \
+                  /tmp/node-sums.txt | head -1)
+        [ -n "$tarball" ] || { echo "node: no linux-$arch tarball in $dist" >&2; exit 1; }
+        curl -fsSL -o "/tmp/$tarball" "$dist/$tarball"
+        (cd /tmp && grep " $tarball\$" node-sums.txt | sha256sum -c -)
+        tar -xJf "/tmp/$tarball" -C /usr/local --strip-components=1 \
+            --exclude CHANGELOG.md --exclude LICENSE --exclude README.md
+        rm -f "/tmp/$tarball" /tmp/node-sums.txt
+      user: "0"
+      description: Ensure Node 22 or newer
+
+    - command: |
+        set -eu
+        [ -x /usr/local/bin/chromium ] && exit 0
+        # The apt chromium-browser package is a non-functional snap stub on
+        # ARM64, so the browser comes from Playwright instead. /opt keeps it
+        # readable by the agent user (root's home is 0700).
+        export PLAYWRIGHT_BROWSERS_PATH=/opt/chromium
+        npx --yes playwright install --with-deps chromium
+        # Hand the tree to the agent (uid 1000), don't just make it world-readable:
+        # PLAYWRIGHT_BROWSERS_PATH is exported to the agent too, so a project that
+        # pulls its own Playwright version installs *into* this directory and
+        # needs to write here. Root-owned, it fails with EACCES.
+        chown -R 1000:1000 /opt/chromium
+        chmod -R o+rX /opt/chromium
+        CHROMIUM_PATH=$(find /opt/chromium -name chrome -path '*/chrome-linux/*' | head -1)
+        ln -sf "$CHROMIUM_PATH" /usr/local/bin/chromium
+      user: "0"
+      description: Install headless Chromium via Playwright
+
+    - command: |
+        set -eu
+        command -v agent-browser >/dev/null && exit 0
+        npm install -g agent-browser
+      user: "0"
+      description: Install the agent-browser CLI
+
+  # Startup hooks run on every sandbox start, not just creation, and — unlike
+  # `install` — take argv rather than a shell string, hence the explicit `sh -c`.
+  startup:
+    - command:
+        - sh
+        - -c
+        - |
+          set -eu
+          # Only Claude Code has this CLI. On codex/gemini/opencode there is
+          # nothing to register here and the mixin stays agent-agnostic.
+          command -v claude >/dev/null || exit 0
+          # The token is the gate: with no credential a registered HTTP server
+          # just fails its health check and starts an OAuth dance nobody can
+          # finish headlessly, which is worse than not registering it at all.
+          [ -n "${SENTRY_ACCESS_TOKEN:-}" ] || exit 0
+          # Idempotent — `mcp add` on an existing name is an error, and this
+          # runs again on every start.
+          claude mcp get sentry >/dev/null 2>&1 && exit 0
+          # Sentry-Bearer, not Bearer: upstream reserves plain Bearer for MCP
+          # OAuth access tokens and treats a user auth token under it as
+          # invalid. Never fatal — a failure here must not block the sandbox.
+          claude mcp add --scope user --transport http sentry \
+            https://mcp.sentry.dev/mcp \
+            --header "Authorization: Sentry-Bearer ${SENTRY_ACCESS_TOKEN}" \
+            || echo "sentry-mcp: registration failed; run the command by hand" >&2
+      user: "1000"
+      description: Register the Sentry MCP server with Claude Code
+
+memory: |
+  ## Turbo toolchain
+
+  PHP with the common extensions (mbstring, xml, curl, zip, intl, bcmath,
+  sqlite3, mysql, gd, redis, pgsql, imagick, memcached), Composer, Node 22 and
+  npm are all on PATH.
+
+  The PHP version is whatever the base image's `php-cli` provides — it is not
+  pinned. Run `php -v` rather than assuming a version, and check it against the
+  project's `composer.json` `require.php` constraint before blaming a failing
+  install on something else.
+
+  Headless Chromium is at `/usr/local/bin/chromium` with the `agent-browser`
+  CLI installed globally; `AGENT_BROWSER_EXECUTABLE_PATH` already points at it,
+  so don't set it yourself. There is no display server — headless only.
+  Screenshots, PDFs, traces and video all work; `--headed`, `--ui` and
+  `codegen` do not.
+
+  ## Laravel Forge
+
+  The `forge` CLI (`laravel/forge-cli`) is on PATH and talks to
+  https://forge.laravel.com/api/. It falls back to `FORGE_API_TOKEN` when no
+  token is stored, so when that variable is set there is nothing to log in to.
+  Don't run `forge login` — a token stored in `~/.laravel-forge/config.json`
+  takes **precedence** over the environment, so logging in would shadow the
+  variable with whatever was typed.
+
+  If `FORGE_API_TOKEN` is set it holds a *placeholder*, not the real token: the
+  host proxy swaps it into the Authorization header on requests to
+  forge.laravel.com. Printing it or sending it anywhere else yields a useless
+  string.
+
+  Most commands act on a selected organization and server — `forge org:switch`
+  and `forge server:switch` write that choice to the same config file. A
+  complaint about no organization being selected is that, not an auth failure.
+
+  If the CLI reports it is unauthenticated, the token was never bound. Ask the
+  user to run this on their host, then restart the sandbox:
+
+      sbx secret set-custom -g --host 'forge.laravel.com' \
+        --env FORGE_API_TOKEN --value <forge-api-token>
+
+  Tokens come from https://forge.laravel.com/user-profile/api.
+
+  Forge changes production infrastructure. Read-only commands (`forge server:list`,
+  `forge site:list`, `forge deploy:logs`) are fine to run when they answer a
+  question, but anything that deploys, restarts, or destroys needs the user to
+  ask for it explicitly first.
+
+  Only the Forge API itself is on the network allowlist. Commands that connect
+  to a provisioned server directly — `forge ssh`, and anything tunnelling
+  through it — target that server's own address, which is not allowlisted and
+  will fail until the user adds it.
+
+  ## Sentry
+
+  Sentry's hosted MCP server is registered with Claude Code as `sentry`
+  (https://mcp.sentry.dev/mcp) whenever `SENTRY_ACCESS_TOKEN` is set. Use it
+  for issues, events and Seer root-cause runs rather than scraping the web UI.
+
+  That variable holds a *placeholder*, not the real token — the host proxy
+  swaps it into the Authorization header on the way out. Printing it, copying
+  it into a file, or sending it anywhere other than Sentry yields a useless
+  string, so don't.
+
+  If the server is missing from `/mcp`, the token was never bound. Ask the user
+  to run this on their host, then restart the sandbox:
+
+      sbx secret set-custom -g --host '**.sentry.dev' --host '**.sentry.io' \
+        --env SENTRY_ACCESS_TOKEN --value <sentry-user-auth-token>
+
+  The token is a Sentry **user auth token** needing `org:read`, `project:read`,
+  `project:write`, `team:read`, `team:write` and `event:write`. For self-hosted
+  Sentry the hosted server is the wrong target — use the stdio server instead
+  (`npx @sentry/mcp-server@latest --host=sentry.example.com`) and ask for that
+  host to be allowlisted.
+
+  ## Network policy
+
+  Outbound access is restricted to this kit's allowlist. A request that fails
+  with a proxy error (often a 502 or a "Blocked by network policy" body) is
+  usually policy rather than the service being down. Ask the user to run
+  `sbx policy ls` and `sbx policy log <sandbox>` on their host, and to add the
+  host with `sbx policy allow network --sandbox <sandbox> <domain>` if it
+  should be reachable. A domain needed by every project belongs in this kit's
+  `network.allowedDomains` instead.

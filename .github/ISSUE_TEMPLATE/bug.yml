@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report an Issue or Bug with the Package
+description: Report an issue with the Turbo kit, sandbox image, or skills
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -7,6 +7,17 @@ body:
       attributes:
           value: |
               We're sorry to hear you have a problem. Can you help us solve it by providing the following details.
+    - type: dropdown
+      id: area
+      attributes:
+          label: Which part of Turbo?
+          options:
+              - The kit (spec.yaml / network policy / sandbox creation)
+              - The sandbox image (PHP, Node, Chromium, agent-browser)
+              - Skills
+              - Something else
+      validations:
+          required: true
     - type: textarea
       id: what-happened
       attributes:
@@ -19,44 +30,44 @@ body:
       id: how-to-reproduce
       attributes:
           label: How to reproduce the bug
-          description: How did this occur, please add any config values used and provide a set of reliable steps if possible.
-          placeholder: When I do X I see Y.
+          description: Please include the exact command you ran and a reliable set of steps if possible.
+          placeholder: sbx run --kit oci://docker.io/springloadedco/turbo-kit@sha256:… turbo
       validations:
           required: true
     - type: input
-      id: package-version
+      id: kit-reference
       attributes:
-          label: Package Version
-          description: What version of our Package are you running? Please be as specific as possible
-          placeholder: 2.0.0
+          label: Kit reference
+          description: The full `--kit` value you used, including the digest, or `./kit` if running from a local clone.
+          placeholder: "oci://docker.io/springloadedco/turbo-kit@sha256:abc123…"
+      validations:
+          required: false
+    - type: input
+      id: sbx-version
+      attributes:
+          label: sbx version
+          description: Output of `sbx version`.
+          placeholder: v0.37.1
       validations:
           required: true
-    - type: input
-      id: php-version
+    - type: textarea
+      id: policy-log
       attributes:
-          label: PHP Version
-          description: What version of PHP are you running? Please be as specific as possible
-          placeholder: 8.2.0
+          label: Network policy log
+          description: If anything failed to reach the network, paste `sbx policy log <sandbox>`.
+          render: shell
       validations:
-          required: true
-    - type: input
-      id: laravel-version
-      attributes:
-        label: Laravel Version
-        description: What version of Laravel are you running? Please be as specific as possible
-        placeholder: 9.0.0
-      validations:
-        required: true
+          required: false
     - type: dropdown
       id: operating-systems
       attributes:
-        label: Which operating systems does this happen with?
-        description: You may select more than one.
-        multiple: true
-        options:
-        - macOS
-        - Windows
-        - Linux
+          label: Which operating systems does this happen with?
+          description: You may select more than one.
+          multiple: true
+          options:
+              - macOS
+              - Windows
+              - Linux
     - type: textarea
       id: notes
       attributes:
