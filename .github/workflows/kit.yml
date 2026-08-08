@@ -5,10 +5,14 @@ on:
     branches: [main]
     paths:
       - 'kit/**'
+      - 'install.sh'
+      - 'shell/**'
       - '.github/workflows/kit.yml'
   pull_request:
     paths:
       - 'kit/**'
+      - 'install.sh'
+      - 'shell/**'
       - '.github/workflows/kit.yml'
   release:
     types: [published]
@@ -55,6 +59,20 @@ jobs:
       - name: Pack kit
         run: sbx kit pack ./kit/ -o turbo-kit.zip
 
+  shell:
+    # The installer and the `turbo` function ship to users' shells but are not
+    # part of the kit artifact, so nothing else here would catch a syntax slip.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Lint the installer and shell helpers
+        run: |
+          bash -n install.sh
+          bash -n shell/turbo.sh
+          shellcheck -s bash install.sh shell/turbo.sh
+
   publish:
     # Only on a published release or an explicit dispatch — never on every main push.
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
@@ -83,27 +101,42 @@ jobs:
 
       - name: Resolve tag
         id: tag
+        # Through `env:`, never `${{ }}` inside the script — the dispatch input is
+        # attacker-controlled text and this job holds a Docker Hub push token.
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="${{ github.event.inputs.tag || github.event.release.tag_name }}"
-          echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+          TAG="${INPUT_TAG:-$RELEASE_TAG}"
+          TAG="${TAG#v}"
+          case "$TAG" in
+            ""|*[!A-Za-z0-9._-]*) echo "Refusing to publish under tag '$TAG'" >&2; exit 1 ;;
+          esac
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Push kit
         id: push
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
         run: |
           set -o pipefail
-          sbx kit push ./kit/ "${KIT_REPO}:${{ steps.tag.outputs.value }}" 2>&1 | tee push.log
+          sbx kit push ./kit/ "${KIT_REPO}:${TAG}" 2>&1 | tee push.log
           # Consumers must reference a digest — tags are rejected for remote kit refs.
-          DIGEST=$(grep -oE 'sha256:[0-9a-f]{64}' push.log | head -1)
+          # `|| true` so a change in push output shape falls through to the
+          # Summarise fallback instead of failing the release job (pipefail + -e).
+          DIGEST=$(grep -oE 'sha256:[0-9a-f]{64}' push.log | head -1 || true)
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Summarise
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           {
             echo "### Kit published"
             echo
             echo '```bash'
-            if [ -n "${{ steps.push.outputs.digest }}" ]; then
-              echo "sbx run --kit oci://${KIT_REPO}@${{ steps.push.outputs.digest }} turbo"
+            if [ -n "$DIGEST" ]; then
+              echo "sbx run --kit oci://${KIT_REPO}@${DIGEST} turbo"
             else
               echo "# Digest not found in push output — read it from the job log."
               echo "sbx run --kit oci://${KIT_REPO}@sha256:<digest> turbo"
