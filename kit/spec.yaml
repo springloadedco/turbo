@@ -19,6 +19,14 @@ environment:
     # A fixed system path shared by every user fixes that.
     PLAYWRIGHT_BROWSERS_PATH: /opt/chromium
     AGENT_BROWSER_EXECUTABLE_PATH: /usr/local/bin/chromium
+    # Playwright prunes revisions its `.links` entries no longer reference. The
+    # install hook runs as root via `npx --yes`, so its link points into
+    # /root/.npm, which uid 1000 cannot read — the agent's own `playwright
+    # install` would classify the link broken and delete the revision that
+    # AGENT_BROWSER_EXECUTABLE_PATH resolves through. Install hooks only run at
+    # creation, so nothing would repair the dangling symlink for the life of the
+    # sandbox. Opting out of the GC is what keeps it resolvable.
+    PLAYWRIGHT_SKIP_BROWSER_GC: "1"
 
 network:
   allowedDomains:
@@ -221,24 +229,44 @@ commands:
 
     - command: |
         set -eu
+        # Hand the tree to the agent (uid 1000), don't just make it world-readable:
+        # PLAYWRIGHT_BROWSERS_PATH is exported to the agent too, so a project that
+        # pulls its own Playwright version installs *into* this directory and
+        # needs to write here. Root-owned, it fails with EACCES.
+        #
+        # This runs *before* the early exit below on purpose. A template can ship
+        # the symlink over a root-owned registry — the accelerator image does
+        # exactly that — and a guard that only tests the symlink would leave that
+        # tree unwritable forever. Both walks are idempotent and cost milliseconds.
+        if [ -d /opt/chromium ]; then
+            chown -R 1000:1000 /opt/chromium
+            chmod -R o+rX /opt/chromium
+        fi
         [ -x /usr/local/bin/chromium ] && exit 0
         # The apt chromium-browser package is a non-functional snap stub on
         # ARM64, so the browser comes from Playwright instead. /opt keeps it
         # readable by the agent user (root's home is 0700).
         export PLAYWRIGHT_BROWSERS_PATH=/opt/chromium
         npx --yes playwright install --with-deps chromium
-        # Hand the tree to the agent (uid 1000), don't just make it world-readable:
-        # PLAYWRIGHT_BROWSERS_PATH is exported to the agent too, so a project that
-        # pulls its own Playwright version installs *into* this directory and
-        # needs to write here. Root-owned, it fails with EACCES.
         chown -R 1000:1000 /opt/chromium
         chmod -R o+rX /opt/chromium
-        # The extracted directory name is not stable across architectures:
-        # amd64 now gets Chrome for Testing (chrome-linux64/), arm64 still gets
-        # Playwright's own build (chrome-linux/). Match on the registry
-        # directory instead — `chromium-*` is the full browser,
-        # `chromium_headless_shell-*` is the shell we don't want.
-        CHROMIUM_PATH=$(find /opt/chromium -type f -name chrome -perm -u+x -path '*/chromium-*' | head -1)
+        # The extracted directory name is not stable across architectures: amd64
+        # gets Chrome for Testing (chrome-linux64/), arm64 gets Playwright's own
+        # build (chrome-linux/) — a per-platform table in playwright-core, not
+        # something to rely on here. Match on the registry directory instead,
+        # which is stable on both. `-name chrome` is what excludes the headless
+        # shell (its binary is `headless_shell`); `-path` is what makes the match
+        # independent of the extracted subdirectory name and keeps other
+        # browsers' trees out.
+        #
+        # Sort by revision and take the newest: `playwright install` only ever
+        # adds revision directories, and unsorted `find | head -1` returns
+        # readdir order, which is the *oldest* one in practice. Capturing find's
+        # output on its own line also lets a genuine find failure abort here
+        # instead of arriving as an empty match and being misreported below as a
+        # layout change.
+        matches=$(find /opt/chromium -type f -name chrome -perm -u+x -path '*/chromium-*')
+        CHROMIUM_PATH=$(printf '%s\n' "$matches" | sort -V | tail -1)
         # Without this, an empty match reaches `ln` as "no such file or
         # directory" — a message that says nothing about what actually broke.
         [ -n "$CHROMIUM_PATH" ] \
